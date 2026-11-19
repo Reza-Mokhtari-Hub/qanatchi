@@ -1,0 +1,6 @@
+{
+  "name": "QANATCHI — قنات‌چی",
+  "description": "نبض آب ایران — بازی پازل اتصال قنات‌های باستانی ایران با الهام از میراث آبی کویر",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

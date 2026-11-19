@@ -1,0 +1,291 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --font-sans: 'Vazirmatn', system-ui, -apple-system, 'Segoe UI', Tahoma, sans-serif;
+    --font-display: 'Lalezar', 'Vazirmatn', system-ui, sans-serif;
+
+    /* Persian Heritage Palette Tokens */
+    --qanat-midnight: #0E1822;
+    --qanat-obsidian: #13110F;
+    --qanat-lapis: #153445;
+    --qanat-turquoise-deep: #0E7C8B;
+    --qanat-turquoise: #19B4C6;
+    --qanat-turquoise-glow: #7CF4FF;
+    --qanat-terracotta: #8C5835;
+    --qanat-sand: #D8C29D;
+    --qanat-cream: #FBF4E4;
+    --qanat-gold: #D99B26;
+    --qanat-gold-light: #F2C96B;
+  }
+
+  html,
+  body {
+    font-family: var(--font-sans);
+    background-color: #13110F;
+    color: #F5ECD7;
+    overflow-x: hidden;
+    -webkit-tap-highlight-color: transparent;
+  }
+}
+
+.font-display {
+  font-family: var(--font-display);
+}
+
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Smooth directional water flow stroke draw */
+@keyframes qanat-water-flow {
+  from {
+    stroke-dashoffset: var(--water-len, 100);
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+/* Subtle continuous turquoise stream shimmer once filled */
+@keyframes qanat-water-shimmer {
+  0% {
+    stroke-dashoffset: 28;
+  }
+  100% {
+    stroke-dashoffset: 0;
+  }
+}
+
+/* Source & destination expanding turquoise ripple */
+@keyframes qanat-water-ripple {
+  0% {
+    transform: scale(0.75);
+    opacity: 0.72;
+  }
+  100% {
+    transform: scale(1.38);
+    opacity: 0;
+  }
+}
+
+/* Leak droplet pulse */
+@keyframes qanat-leak-pulse {
+  0%,
+  100% {
+    transform: scale(0.88);
+    opacity: 0.78;
+  }
+  50% {
+    transform: scale(1.16);
+    opacity: 1;
+  }
+}
+
+/* Oasis bloom when destination receives water */
+@keyframes qanat-oasis-bloom {
+  0% {
+    transform: scale(0.76);
+    opacity: 0.45;
+  }
+  65% {
+    transform: scale(1.09);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+/* Hint ring glow */
+@keyframes qanat-hint-glow {
+  0%,
+  100% {
+    opacity: 0.52;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+/* Subtle entrance transitions (compositor-only: opacity + transform) */
+@keyframes qanat-screen-enter {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes qanat-modal-enter {
+  from {
+    opacity: 0;
+    transform: scale(0.95) translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+/* Victory star pop & sunburst ring */
+@keyframes qanat-star-pop {
+  0% {
+    opacity: 0;
+    transform: scale(0.35) rotate(-18deg);
+  }
+  65% {
+    opacity: 1;
+    transform: scale(1.18) rotate(5deg);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) rotate(0deg);
+  }
+}
+
+@keyframes qanat-star-ring {
+  0% {
+    opacity: 0.75;
+    transform: scale(0.6);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.55);
+  }
+}
+
+/* One-shot victory ripple & Persian diamond celebration motes */
+@keyframes qanat-victory-ripple {
+  0% {
+    opacity: 0.7;
+    transform: scale(0.85);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(2.05);
+  }
+}
+
+@keyframes qanat-victory-mote {
+  0% {
+    opacity: 0;
+    transform: translate(0, 0) rotate(0deg) scale(0.4);
+  }
+  20% {
+    opacity: 0.95;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(var(--mote-tx, 0px), var(--mote-ty, -60px))
+      rotate(var(--mote-rot, 45deg)) scale(1);
+  }
+}
+
+/* Subtle tactile highlight ring when a tile is rotated */
+@keyframes qanat-tile-select-fade {
+  0% {
+    opacity: 0.9;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+.animate-water-draw {
+  stroke-dasharray: var(--water-len, 100);
+  stroke-dashoffset: 0;
+  animation: qanat-water-flow 210ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-water-draw-delayed {
+  stroke-dasharray: var(--water-len, 50);
+  stroke-dashoffset: var(--water-len, 50);
+  animation: qanat-water-flow 165ms cubic-bezier(0.16, 1, 0.3, 1) 85ms forwards;
+}
+
+.animate-water-shimmer {
+  stroke-dasharray: 6 22;
+  animation: qanat-water-shimmer 1.15s linear infinite;
+}
+
+.animate-water-ripple {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: qanat-water-ripple 1.6s cubic-bezier(0.16, 1, 0.3, 1) infinite;
+}
+
+.animate-leak-pulse {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: qanat-leak-pulse 900ms ease-in-out infinite;
+}
+
+.animate-oasis-bloom {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: qanat-oasis-bloom 520ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-hint-glow {
+  animation: qanat-hint-glow 1.2s ease-in-out infinite;
+}
+
+.animate-qanat-enter {
+  animation: qanat-screen-enter 280ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.animate-qanat-modal {
+  animation: qanat-modal-enter 240ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.animate-star-pop {
+  animation: qanat-star-pop 420ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.animate-star-ring {
+  animation: qanat-star-ring 620ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.animate-victory-ripple {
+  animation: qanat-victory-ripple 960ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-victory-mote {
+  animation: qanat-victory-mote 860ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-tile-select {
+  animation: qanat-tile-select-fade 420ms ease-out forwards;
+}
+
+.reduced-motion *,
+.reduced-motion *::before,
+.reduced-motion *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-water-draw,
+  .animate-water-draw-delayed,
+  .animate-water-shimmer,
+  .animate-water-ripple,
+  .animate-leak-pulse,
+  .animate-oasis-bloom,
+  .animate-hint-glow,
+  .animate-qanat-enter,
+  .animate-qanat-modal,
+  .animate-star-pop,
+  .animate-star-ring,
+  .animate-victory-ripple,
+  .animate-victory-mote,
+  .animate-tile-select {
+    animation: none !important;
+  }
+}
