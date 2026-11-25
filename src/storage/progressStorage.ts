@@ -15,9 +15,10 @@ import type {
 export const LEGACY_V1_PROGRESS_KEY = 'qanatchi_v1_progress';
 export const LEGACY_V2_PROGRESS_KEY = 'qanatchi_v2_progress';
 export const LEGACY_V3_PROGRESS_KEY = 'qanatchi_v3_progress';
-export const PROGRESS_STORAGE_KEY = 'qanatchi_v4_progress';
+export const LEGACY_V4_PROGRESS_KEY = 'qanatchi_v4_progress';
+export const PROGRESS_STORAGE_KEY = 'qanatchi_v5_progress';
 export const SETTINGS_STORAGE_KEY = 'qanatchi_v1_settings';
-export const STORAGE_SCHEMA_VERSION = 4;
+export const STORAGE_SCHEMA_VERSION = 5;
 
 export interface StorageLike {
   getItem(key: string): string | null;
@@ -42,6 +43,8 @@ const VALID_REGIONS: readonly RegionId[] = [
   'semnan',
   'northwest',
   'razavi_khorasan',
+  'shahsavan',
+  'turkmen_sahra',
 ];
 
 function isValidRegionId(value: unknown): value is RegionId {
@@ -133,16 +136,17 @@ function sanitizeLevelRecords(
 }
 
 /**
- * Migrate raw parsed storage payload (v1, v2, v3, or v4) safely and losslessly
- * into the current v4 80-level / 10-route campaign schema.
+ * Migrate raw parsed storage payload (v1, v2, v3, v4, or v5) safely and losslessly
+ * into the current v5 100-level / 50-destination / 12-route campaign schema.
  *
  * Guarantees:
- * - Never discards valid stars, scores, moves, times, or completed levels (1–40 or 41–80).
- * - Never marks new levels (41–80) as completed.
+ * - Never discards valid stars, scores, moves, times, or completed levels (1–80 or 81–100).
+ * - Never marks new levels (81–100) as completed.
  * - Pre-v3 player who finished Level 24 seamlessly continues to Level 25 (Zanjan).
  * - Pre-v4 player who finished Level 40 seamlessly continues to Level 41 (Isfahan Plateau).
- * - Pre-v4 `campaign_complete` story flag (earned at 24 or 40 levels) is cleared on upgrade
- *   so the true 80-level campaign finale triggers upon completing Level 80.
+ * - Pre-v5 player who finished Level 80 seamlessly continues to Level 81 (Shahsavan Heritage).
+ * - Pre-v5 `campaign_complete` story flag (earned at 24, 40, or 80 levels) is cleared on upgrade
+ *   so the true 100-level campaign finale triggers upon completing Level 100.
  */
 export function migrateProgressPayload(parsed: unknown): SavedProgress {
   if (!parsed || typeof parsed !== 'object') {
@@ -185,15 +189,23 @@ export function migrateProgressPayload(parsed: unknown): SavedProgress {
       ? record.lastPlayedLevelId
       : highestUnlockedLevelId;
 
-  // Seamless v3 -> v4 continuation for players who finished Level 40 before Phase 8
-  const upgradedFromCompleted40 =
+  // Seamless v4 -> v5 continuation for players who finished Level 80 before Phase 9
+  const upgradedFromCompleted80 =
     sourceVersion < STORAGE_SCHEMA_VERSION &&
+    Boolean(sanitizedLevels[80]?.completed) &&
+    !sanitizedLevels[81]?.completed &&
+    rawLastPlayed === 80 &&
+    highestUnlockedLevelId >= 81;
+
+  // Seamless v3 -> v5 continuation for players who finished Level 40 before Phase 8
+  const upgradedFromCompleted40 =
+    sourceVersion < 4 &&
     Boolean(sanitizedLevels[40]?.completed) &&
     !sanitizedLevels[41]?.completed &&
     rawLastPlayed === 40 &&
     highestUnlockedLevelId >= 41;
 
-  // Seamless v2 -> v4 continuation for players who finished Level 24 before Phase 7
+  // Seamless v2 -> v5 continuation for players who finished Level 24 before Phase 7
   const upgradedFromCompleted24 =
     sourceVersion < 3 &&
     Boolean(sanitizedLevels[24]?.completed) &&
@@ -201,7 +213,9 @@ export function migrateProgressPayload(parsed: unknown): SavedProgress {
     rawLastPlayed === 24 &&
     highestUnlockedLevelId >= 25;
 
-  if (upgradedFromCompleted40) {
+  if (upgradedFromCompleted80) {
+    rawLastPlayed = 81;
+  } else if (upgradedFromCompleted40) {
     rawLastPlayed = 41;
   } else if (upgradedFromCompleted24) {
     rawLastPlayed = 25;
@@ -210,16 +224,18 @@ export function migrateProgressPayload(parsed: unknown): SavedProgress {
   const lastPlayedLevelId = Math.min(rawLastPlayed, highestUnlockedLevelId);
 
   const inferredRegion = getRegionForLevelId(lastPlayedLevelId).id;
-  const lastSelectedRegionId = upgradedFromCompleted40
-    ? 'isfahan'
-    : upgradedFromCompleted24
-      ? 'zanjan'
-      : isValidRegionId(record.lastSelectedRegionId) &&
-          unlockedRegions.includes(record.lastSelectedRegionId)
-        ? record.lastSelectedRegionId
-        : unlockedRegions.includes(inferredRegion)
-          ? inferredRegion
-          : 'yazd';
+  const lastSelectedRegionId = upgradedFromCompleted80
+    ? 'shahsavan'
+    : upgradedFromCompleted40
+      ? 'isfahan'
+      : upgradedFromCompleted24
+        ? 'zanjan'
+        : isValidRegionId(record.lastSelectedRegionId) &&
+            unlockedRegions.includes(record.lastSelectedRegionId)
+          ? record.lastSelectedRegionId
+          : unlockedRegions.includes(inferredRegion)
+            ? inferredRegion
+            : 'yazd';
 
   let seenStoryIds = Array.isArray(record.seenStoryIds)
     ? record.seenStoryIds.filter((s): s is string => typeof s === 'string')
@@ -242,20 +258,21 @@ export function migrateProgressPayload(parsed: unknown): SavedProgress {
 
 /**
  * Load progress with automatic, lossless migration from:
- * 1. Current v4 storage (`qanatchi_v4_progress`)
- * 2. Phase 7 v3 storage (`qanatchi_v3_progress`)
- * 3. Phase 2–6.1 v2 storage (`qanatchi_v2_progress`)
- * 4. Phase 1 v1 storage (`qanatchi_v1_progress`)
+ * 1. Current v5 storage (`qanatchi_v5_progress`)
+ * 2. Phase 8 v4 storage (`qanatchi_v4_progress`)
+ * 3. Phase 7 v3 storage (`qanatchi_v3_progress`)
+ * 4. Phase 2–6.1 v2 storage (`qanatchi_v2_progress`)
+ * 5. Phase 1 v1 storage (`qanatchi_v1_progress`)
  * Handles malformed JSON or partial objects safely without losing valid records.
  */
 export function loadProgress(storage: StorageLike | null = getBrowserStorage()): SavedProgress {
   if (!storage) return createDefaultProgress();
 
-  // 1. Try current v4 storage first
+  // 1. Try current v5 storage first
   try {
-    const rawV4 = storage.getItem(PROGRESS_STORAGE_KEY);
-    if (rawV4) {
-      const parsed: unknown = JSON.parse(rawV4);
+    const rawV5 = storage.getItem(PROGRESS_STORAGE_KEY);
+    if (rawV5) {
+      const parsed: unknown = JSON.parse(rawV5);
       if (parsed && typeof parsed === 'object') {
         return migrateProgressPayload(parsed);
       }
@@ -264,7 +281,22 @@ export function loadProgress(storage: StorageLike | null = getBrowserStorage()):
     // Fall through to legacy keys or safe default
   }
 
-  // 2. Fallback & auto-migrate from Phase 7 v3 storage key
+  // 2. Fallback & auto-migrate from Phase 8 v4 storage key
+  try {
+    const rawV4 = storage.getItem(LEGACY_V4_PROGRESS_KEY);
+    if (rawV4) {
+      const parsedV4: unknown = JSON.parse(rawV4);
+      if (parsedV4 && typeof parsedV4 === 'object') {
+        const migrated = migrateProgressPayload(parsedV4);
+        saveProgress(migrated, storage);
+        return migrated;
+      }
+    }
+  } catch {
+    // Fall through to legacy v3 key
+  }
+
+  // 3. Fallback & auto-migrate from Phase 7 v3 storage key
   try {
     const rawV3 = storage.getItem(LEGACY_V3_PROGRESS_KEY);
     if (rawV3) {
@@ -279,7 +311,7 @@ export function loadProgress(storage: StorageLike | null = getBrowserStorage()):
     // Fall through to legacy v2 key
   }
 
-  // 3. Fallback & auto-migrate from Phase 2–6.1 v2 storage key
+  // 4. Fallback & auto-migrate from Phase 2–6.1 v2 storage key
   try {
     const rawV2 = storage.getItem(LEGACY_V2_PROGRESS_KEY);
     if (rawV2) {
@@ -294,7 +326,7 @@ export function loadProgress(storage: StorageLike | null = getBrowserStorage()):
     // Fall through to legacy v1 key
   }
 
-  // 4. Fallback & auto-migrate from Phase 1 v1 storage key
+  // 5. Fallback & auto-migrate from Phase 1 v1 storage key
   try {
     const rawV1 = storage.getItem(LEGACY_V1_PROGRESS_KEY);
     if (rawV1) {
@@ -437,6 +469,7 @@ export function clearProgress(
   if (storage) {
     try {
       storage.removeItem(PROGRESS_STORAGE_KEY);
+      storage.removeItem(LEGACY_V4_PROGRESS_KEY);
       storage.removeItem(LEGACY_V3_PROGRESS_KEY);
       storage.removeItem(LEGACY_V2_PROGRESS_KEY);
       storage.removeItem(LEGACY_V1_PROGRESS_KEY);

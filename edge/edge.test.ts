@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import http from 'node:http';
 import path from 'node:path';
 import test from 'node:test';
 import vm from 'node:vm';
@@ -13,8 +14,13 @@ import {
 } from '../src/engagement/solutionReplay';
 import { isRotatableTile } from '../src/engine/connections';
 import type { LevelDefinition } from '../src/engine/types';
+import { LEVELS } from '../src/levels/levels';
+import { hmacSha256Hex, sha256Hex, signAttemptToken, verifyAttemptToken } from './crypto';
+import { readEdgeRuntimeConfig } from './env';
 import { handleEdgeRequest } from './router';
 import { InMemoryTestStorageAdapter } from './storage/inMemoryTestStorage';
+import { PostgresHttpStorageAdapter } from './storage/postgresHttpStorage';
+import { resolveProductionStorage } from './storage/resolveStorage';
 import { UnconfiguredStorageAdapter } from './storage/unconfiguredStorage';
 
 const FIXED_NOW = () => new Date('2026-11-19T12:00:00.000Z'); // 2026-11-19 15:30 Asia/Tehran
@@ -128,8 +134,11 @@ test('GET /api/v1/health returns structured status, Tehran date, feature flags, 
   assert.deepEqual(json.features, {
     dailyMetadata: true,
     serverVerification: true,
+    campaignVerification: true,
     globalLeaderboard: false,
     serverVerifiedTiming: false,
+    onlineFriendChallenges: false,
+    playerProfiles: false,
   });
 
   // Ensure no credential-like keys exist in health payload
@@ -647,6 +656,9 @@ test('built dist-edge/worker.js executes cleanly inside a pure Web Fetch-Event s
     String,
     Boolean,
     Promise,
+    AbortController,
+    setTimeout,
+    clearTimeout,
     console,
     addEventListener: (type: string, listener: FetchListener) => {
       if (type === 'fetch') {
@@ -936,3 +948,844 @@ test('unexpected internal exceptions return sanitized 500 INTERNAL_ERROR without
   assert.equal(parsed.error.code, 'INTERNAL_ERROR');
 });
 
+// ---------------------------------------------------------------------------
+// 7. REAL ARVANCLOUD EDGE CRYPTO, ATTEMPT TOKENS, CAMPAIGN, GLOBAL, PROFILES
+// ---------------------------------------------------------------------------
+
+test('pure ES2022 SHA-256, HMAC-SHA256, and attemptToken signing/verification reject tampering and expiry', () => {
+  // Known FIPS 180-4 SHA-256 vector for "abc"
+  assert.equal(
+    sha256Hex('abc'),
+    'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad',
+  );
+  // RFC 4231 Test Case 2: key="Jefe", data="what do ya want for nothing?"
+  assert.equal(
+    hmacSha256Hex('Jefe', 'what do ya want for nothing?'),
+    '5bdcc146bf60754e6a042426089575c75a003f089d2739839dec58b964ec3843',
+  );
+
+  const secret = 'test-signing-secret-32-characters-min';
+  const issuedAtMs = 1_700_000_000_000;
+  const token = signAttemptToken(
+    {
+      v: 1,
+      nonceId: 'n_abcdef1234567890',
+      challengeType: 'daily',
+      challengeId: 'daily-v1-2026-11-19',
+      playerIdHash: 'p_1234567890abcdef',
+      issuedAtMs,
+      expiresAtMs: issuedAtMs + 60_000,
+      minSolveMs: 1000,
+    },
+    secret,
+  );
+
+  const valid = verifyAttemptToken(token, secret, issuedAtMs + 5000);
+  assert.equal(valid.ok, true);
+  if (valid.ok) {
+    assert.equal(valid.claims.nonceId, 'n_abcdef1234567890');
+  }
+
+  // Expired token
+  const expired = verifyAttemptToken(token, secret, issuedAtMs + 120_000);
+  assert.deepEqual(expired, { ok: false, reason: 'expired' });
+
+  // Tampered payload
+  const [payloadB64, sigB64] = token.split('.');
+  const tamperedToken = `${payloadB64.slice(0, -1)}Z.${sigB64}`;
+  const tampered = verifyAttemptToken(tamperedToken, secret, issuedAtMs + 5000);
+  assert.equal(tampered.ok, false);
+});
+
+test('GET /api/v1/ready, /api/v1/version, and campaign level verification (1..100) behave accurately', async () => {
+  // 1. /ready returns 503 STORAGE_NOT_CONFIGURED when unconfigured
+  const notReady = await handleEdgeRequest(new Request('https://qanatchi.example.ir/api/v1/ready'), {
+    now: FIXED_NOW,
+    storage: new UnconfiguredStorageAdapter(),
+  });
+  assert.equal(notReady.status, 503);
+  assert.equal(((await notReady.json()) as { error: { code: string } }).error.code, 'STORAGE_NOT_CONFIGURED');
+
+  // 2. /ready returns 200 with latency when healthy
+  const storage = new InMemoryTestStorageAdapter();
+  const readyOk = await handleEdgeRequest(new Request('https://qanatchi.example.ir/api/v1/ready'), {
+    now: FIXED_NOW,
+    storage,
+  });
+  assert.equal(readyOk.status, 200);
+  const readyJson = (await readyOk.json()) as { ok: true; ready: boolean; storage: { reachable: boolean } };
+  assert.equal(readyJson.ready, true);
+  assert.equal(readyJson.storage.reachable, true);
+
+  // 3. /ready returns 503 STORAGE_UNAVAILABLE when ping fails
+  storage.setSimulateFailure(true);
+  const readyDown = await handleEdgeRequest(new Request('https://qanatchi.example.ir/api/v1/ready'), {
+    now: FIXED_NOW,
+    storage,
+  });
+  assert.equal(readyDown.status, 503);
+  assert.equal(((await readyDown.json()) as { error: { code: string } }).error.code, 'STORAGE_UNAVAILABLE');
+
+  // 4. /version reports all 100 campaign levels
+  const verRes = await handleEdgeRequest(new Request('https://qanatchi.example.ir/api/v1/version'));
+  assert.equal(verRes.status, 200);
+  const verJson = (await verRes.json()) as {
+    totalCampaignLevels: number;
+    supportedChallengeTypes: string[];
+  };
+  assert.equal(verJson.totalCampaignLevels, 100);
+  assert.deepEqual(verJson.supportedChallengeTypes, ['campaign', 'daily', 'friend']);
+
+  // 5. Verify Campaign Level 1 and Level 100 on server
+  for (const levelId of [1, 100]) {
+    const levelDef = LEVELS.find((l) => l.id === levelId)!;
+    const actions = buildOptimalActionsForLevel(levelDef);
+    const verifyCampaign = await handleEdgeRequest(
+      makeJsonPost('https://qanatchi.example.ir/api/v1/challenges/verify', {
+        challengeType: 'campaign',
+        levelId,
+        challengeId: `campaign-${levelId}`,
+        algoVersion: 1,
+        actions,
+      }),
+      { now: FIXED_NOW },
+    );
+    assert.equal(verifyCampaign.status, 200);
+    const body = (await verifyCampaign.json()) as {
+      verification: { verified: boolean; challengeType: string; challengeId: string };
+    };
+    assert.equal(body.verification.verified, true);
+    assert.equal(body.verification.challengeType, 'campaign');
+    assert.equal(body.verification.challengeId, `campaign-${levelId}`);
+  }
+
+  // Invalid campaign levelId (101) rejected
+  const invalidCampaign = await handleEdgeRequest(
+    makeJsonPost('https://qanatchi.example.ir/api/v1/challenges/verify', {
+      challengeType: 'campaign',
+      challengeId: 'campaign-101',
+      levelId: 101,
+      algoVersion: 1,
+      actions: [{ row: 0, col: 0 }],
+    }),
+    { now: FIXED_NOW },
+  );
+  assert.equal(invalidCampaign.status, 400);
+  assert.equal(((await invalidCampaign.json()) as { error: { code: string } }).error.code, 'INVALID_LEVEL_ID');
+});
+
+test('POST /api/v1/challenges/start enforces signed attempt tokens, impossible solve-time protection, single-use nonce consumption, and idempotency', async () => {
+  const storage = new InMemoryTestStorageAdapter();
+  const daily = generateDailyChallenge('2026-11-19');
+  const actions = buildOptimalActionsForLevel(daily.level);
+  const signingSecret = 'qanatchi-test-hmac-secret-key-2026';
+  const playerId = 'anon_attempt_player_001';
+
+  const startMs = FIXED_NOW().getTime();
+  const startRes = await handleEdgeRequest(
+    makeJsonPost('https://qanatchi.example.ir/api/v1/challenges/start', {
+      challengeType: 'daily',
+      challengeId: daily.challengeId,
+      dateKey: daily.dateKey,
+      algoVersion: daily.algoVersion,
+      playerId,
+    }),
+    {
+      storage,
+      now: () => new Date(startMs),
+      configOverrides: { signingSecret },
+    },
+  );
+  assert.equal(startRes.status, 201);
+  const startJson = (await startRes.json()) as {
+    attempt: { attemptToken: string; minSolveTimeMs: number; persistedNonce: boolean };
+  };
+  assert.equal(startJson.attempt.persistedNonce, true);
+  assert.ok(startJson.attempt.minSolveTimeMs >= 500);
+
+  // 1. Submitting faster than minSolveTimeMs (100ms later) -> 422 IMPOSSIBLE_SOLVE_TIME
+  const tooFast = await handleEdgeRequest(
+    makeJsonPost('https://qanatchi.example.ir/api/v1/leaderboards/submit', {
+      challengeType: 'daily',
+      challengeId: daily.challengeId,
+      dateKey: daily.dateKey,
+      algoVersion: daily.algoVersion,
+      playerId,
+      displayLabel: 'سهراب',
+      attemptToken: startJson.attempt.attemptToken,
+      actions,
+    }),
+    {
+      storage,
+      now: () => new Date(startMs + 100),
+      configOverrides: { signingSecret },
+    },
+  );
+  assert.equal(tooFast.status, 422);
+  assert.equal(((await tooFast.json()) as { error: { code: string } }).error.code, 'IMPOSSIBLE_SOLVE_TIME');
+
+  // 2. Submitting with wrong playerId -> 400 ATTEMPT_TOKEN_MISMATCH
+  const wrongPlayer = await handleEdgeRequest(
+    makeJsonPost('https://qanatchi.example.ir/api/v1/leaderboards/submit', {
+      challengeType: 'daily',
+      challengeId: daily.challengeId,
+      dateKey: daily.dateKey,
+      algoVersion: daily.algoVersion,
+      playerId: 'anon_different_player_999',
+      attemptToken: startJson.attempt.attemptToken,
+      actions,
+    }),
+    {
+      storage,
+      now: () => new Date(startMs + 10_000),
+      configOverrides: { signingSecret },
+    },
+  );
+  assert.equal(wrongPlayer.status, 400);
+  assert.equal(((await wrongPlayer.json()) as { error: { code: string } }).error.code, 'ATTEMPT_TOKEN_MISMATCH');
+
+  // 3. Valid submit after elapsed >= minSolveMs -> 201 timingVerified=true
+  const validSubmit = await handleEdgeRequest(
+    makeJsonPost(
+      'https://qanatchi.example.ir/api/v1/leaderboards/submit',
+      {
+        challengeType: 'daily',
+        challengeId: daily.challengeId,
+        dateKey: daily.dateKey,
+        algoVersion: daily.algoVersion,
+        playerId,
+        displayLabel: 'سهراب',
+        attemptToken: startJson.attempt.attemptToken,
+        actions,
+      },
+      { 'Idempotency-Key': 'idem_attempt_key_0001' },
+    ),
+    {
+      storage,
+      now: () => new Date(startMs + 12_500),
+      configOverrides: { signingSecret },
+    },
+  );
+  assert.equal(validSubmit.status, 201);
+  const validJson = (await validSubmit.json()) as {
+    submission: { timingVerified: boolean; serverElapsedMs: number };
+  };
+  assert.equal(validJson.submission.timingVerified, true);
+  assert.equal(validJson.submission.serverElapsedMs, 12_500);
+
+  // 4. Reusing the exact same attemptToken nonce a second time -> 409 NONCE_ALREADY_USED
+  const replayNonce = await handleEdgeRequest(
+    makeJsonPost('https://qanatchi.example.ir/api/v1/leaderboards/submit', {
+      challengeType: 'daily',
+      challengeId: daily.challengeId,
+      dateKey: daily.dateKey,
+      algoVersion: daily.algoVersion,
+      playerId,
+      attemptToken: startJson.attempt.attemptToken,
+      actions,
+    }),
+    {
+      storage,
+      now: () => new Date(startMs + 15_000),
+      configOverrides: { signingSecret },
+    },
+  );
+  assert.equal(replayNonce.status, 409);
+  assert.equal(((await replayNonce.json()) as { error: { code: string } }).error.code, 'NONCE_ALREADY_USED');
+
+  // 5. Idempotency-Key deduplicates retries cleanly without attemptToken requirement if not enforced
+  const retrySameIdem = await handleEdgeRequest(
+    makeJsonPost(
+      'https://qanatchi.example.ir/api/v1/leaderboards/submit',
+      {
+        challengeType: 'daily',
+        challengeId: daily.challengeId,
+        dateKey: daily.dateKey,
+        algoVersion: daily.algoVersion,
+        playerId,
+        actions: [...actions, actions[0], actions[0], actions[0], actions[0]],
+      },
+      { 'Idempotency-Key': 'idem_attempt_key_0001' },
+    ),
+    {
+      storage,
+      now: () => new Date(startMs + 20_000),
+      configOverrides: { signingSecret },
+    },
+  );
+  assert.equal(retrySameIdem.status, 200);
+  const retryJson = (await retrySameIdem.json()) as { submission: { duplicate: boolean } };
+  assert.equal(retryJson.submission.duplicate, true);
+});
+
+test('friend challenge registration/expiry (410), global leaderboard aggregation, player profiles, and rate limits (429) work end-to-end', async () => {
+  const storage = new InMemoryTestStorageAdapter();
+  const friend = createFriendChallengeFromTemplate('tpl_02', 777111);
+  const playerId = 'anon_friend_host_001';
+
+  // 1. Register friend challenge with short 1-hour expiry
+  const createRes = await handleEdgeRequest(
+    makeJsonPost('https://qanatchi.example.ir/api/v1/friend-challenges', {
+      challengeId: friend.challengeId,
+      playerId,
+      expiresInHours: 1,
+    }),
+    { storage, now: () => new Date('2026-11-19T12:00:00.000Z') },
+  );
+  assert.equal(createRes.status, 201);
+
+  // 2. Active friend challenge returns 200
+  const getActive = await handleEdgeRequest(
+    new Request(`https://qanatchi.example.ir/api/v1/friend-challenges/${friend.challengeId}`),
+    { storage, now: () => new Date('2026-11-19T12:30:00.000Z') },
+  );
+  assert.equal(getActive.status, 200);
+
+  // 3. Expired friend challenge returns 410 CHALLENGE_EXPIRED
+  const getExpired = await handleEdgeRequest(
+    new Request(`https://qanatchi.example.ir/api/v1/friend-challenges/${friend.challengeId}`),
+    { storage, now: () => new Date('2026-11-19T14:00:00.000Z') },
+  );
+  assert.equal(getExpired.status, 410);
+  assert.equal(((await getExpired.json()) as { error: { code: string } }).error.code, 'CHALLENGE_EXPIRED');
+
+  // 4. Update player profile + submit daily score + verify global leaderboard & /players/me
+  const profilePost = await handleEdgeRequest(
+    makeJsonPost('https://qanatchi.example.ir/api/v1/players/profile', {
+      playerId,
+      displayLabel: 'دارا کاشانی',
+    }),
+    { storage, now: FIXED_NOW },
+  );
+  assert.equal(profilePost.status, 200);
+
+  const daily = generateDailyChallenge('2026-11-19');
+  const submitRes = await handleEdgeRequest(
+    makeJsonPost('https://qanatchi.example.ir/api/v1/leaderboards/submit', {
+      challengeType: 'daily',
+      challengeId: daily.challengeId,
+      dateKey: daily.dateKey,
+      algoVersion: daily.algoVersion,
+      playerId,
+      displayLabel: 'دارا کاشانی',
+      actions: buildOptimalActionsForLevel(daily.level),
+    }),
+    { storage, now: FIXED_NOW },
+  );
+  assert.equal(submitRes.status, 201);
+
+  const globalRes = await handleEdgeRequest(
+    new Request(`https://qanatchi.example.ir/api/v1/leaderboards/global?playerId=${playerId}`),
+    { storage, now: FIXED_NOW },
+  );
+  assert.equal(globalRes.status, 200);
+  const globalJson = (await globalRes.json()) as {
+    leaderboard: {
+      total: number;
+      entries: Array<{ rank: number; displayLabel: string; totalScore: number }>;
+      playerEntry: { rank: number; displayLabel: string } | null;
+    };
+  };
+  assert.equal(globalJson.leaderboard.total, 1);
+  assert.equal(globalJson.leaderboard.entries[0].displayLabel, 'دارا کاشانی');
+  assert.equal(globalJson.leaderboard.playerEntry?.rank, 1);
+
+  const meRes = await handleEdgeRequest(
+    new Request(`https://qanatchi.example.ir/api/v1/players/me?playerId=${playerId}`),
+    { storage, now: FIXED_NOW },
+  );
+  assert.equal(meRes.status, 200);
+  const meJson = (await meRes.json()) as {
+    profile: { displayLabel: string; verifiedSubmissions: number };
+  };
+  assert.equal(meJson.profile.displayLabel, 'دارا کاشانی');
+  assert.equal(meJson.profile.verifiedSubmissions, 1);
+
+  // 5. Rate limit enforcement -> 429 + Retry-After header
+  for (let i = 0; i < 6; i++) {
+    const r = await handleEdgeRequest(
+      makeJsonPost('https://qanatchi.example.ir/api/v1/players/profile', {
+        playerId: 'anon_rate_limit_tester_99',
+        displayLabel: `بازیکن ${i}`,
+      }),
+      {
+        storage,
+        now: () => new Date('2026-11-19T12:00:00.000Z'),
+        configOverrides: { rateLimitMaxPerMin: 5 },
+      },
+    );
+    if (i < 5) {
+      assert.equal(r.status, 200);
+    } else {
+      assert.equal(r.status, 429);
+      assert.ok(Number(r.headers.get('retry-after')) >= 1);
+      assert.equal(((await r.json()) as { error: { code: string } }).error.code, 'RATE_LIMIT_EXCEEDED');
+    }
+  }
+});
+
+test('PostgresHttpStorageAdapter & resolveProductionStorage communicate cleanly over HTTPS/HTTP SQL gateway and handle sequential MVCC saves, duplicates, auth, and security constraints', async () => {
+  const capturedCalls: Array<{ authHeader?: string; query: string; params: unknown[] }> = [];
+
+  // Stateful PostgreSQL table simulation to enforce real committed-between-statements visibility
+  const pgPlayers = new Map<string, { player_id_hash: string; display_label: string; verified_submissions: number; best_daily_score: number; best_friend_score: number; total_verified_score: number }>();
+  const pgSubs: Array<Record<string, unknown>> = [];
+  const pgBest = new Map<string, Record<string, unknown>>();
+
+  const server = http.createServer(async (req, res) => {
+    if (req.url === '/sql' && req.method === 'POST') {
+      const chunks: Buffer[] = [];
+      for await (const c of req) {
+        chunks.push(typeof c === 'string' ? Buffer.from(c) : c);
+      }
+      const parsed = JSON.parse(Buffer.concat(chunks).toString('utf8')) as {
+        query: string;
+        params: unknown[];
+      };
+      capturedCalls.push({
+        authHeader: req.headers.authorization,
+        query: parsed.query,
+        params: parsed.params,
+      });
+
+      if (req.headers.authorization !== 'Bearer gw-secret-token-test') {
+        res.writeHead(401, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Unauthorized', code: '28P01' }));
+        return;
+      }
+
+      const q = parsed.query;
+      const p = parsed.params;
+
+      if (q.includes('SELECT 1 AS alive')) {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ rows: [{ alive: 1 }] }));
+        return;
+      }
+
+      if (q.includes('INSERT INTO players')) {
+        const hash = String(p[0]);
+        const label = String(p[1] ?? 'مسافر قنات');
+        const existing = pgPlayers.get(hash);
+        if (existing) {
+          existing.display_label = label;
+        } else {
+          pgPlayers.set(hash, {
+            player_id_hash: hash,
+            display_label: label,
+            verified_submissions: 0,
+            best_daily_score: 0,
+            best_friend_score: 0,
+            total_verified_score: 0,
+          });
+        }
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ rows: [] }));
+        return;
+      }
+
+      if (q.includes('INSERT INTO verified_submissions')) {
+        const subId = String(p[0]);
+        const fingerprint = String(p[1]);
+        const idemKey = p[2] === null || p[2] === undefined ? null : String(p[2]);
+        const nonceId = p[17] === null || p[17] === undefined ? null : String(p[17]);
+        const conflict = pgSubs.some(
+          (s) =>
+            s.submission_id === subId ||
+            s.submission_fingerprint === fingerprint ||
+            (idemKey !== null && s.idempotency_key === idemKey) ||
+            (nonceId !== null && s.nonce_id === nonceId),
+        );
+        if (conflict) {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ rows: [] }));
+          return;
+        }
+        pgSubs.push({
+          submission_id: subId,
+          submission_fingerprint: fingerprint,
+          idempotency_key: idemKey,
+          player_id_hash: p[3],
+          display_label: p[4],
+          challenge_type: p[5],
+          challenge_id: p[6],
+          date_key: p[7],
+          algo_version: p[8],
+          scoring_version: p[9],
+          score: Number(p[10]),
+          stars: Number(p[11]),
+          verified_moves: Number(p[12]),
+          performance_tier: p[13],
+          performance_label_fa: p[14],
+          elapsed_ms_server: p[15],
+          timing_verified: Boolean(p[16]),
+          nonce_id: nonceId,
+          submitted_at: p[18],
+        });
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ rows: [{ submission_id: subId }] }));
+        return;
+      }
+
+      if (q.includes('INSERT INTO leaderboard_best')) {
+        const key = `${String(p[0])}:${String(p[1])}:${String(p[2])}`;
+        const candidate = {
+          challenge_type: p[0],
+          challenge_id: p[1],
+          player_id_hash: p[2],
+          submission_id: p[3],
+          display_label: p[4],
+          date_key: p[5],
+          algo_version: p[6],
+          scoring_version: p[7],
+          score: Number(p[8]),
+          stars: Number(p[9]),
+          verified_moves: Number(p[10]),
+          performance_tier: p[11],
+          performance_label_fa: p[12],
+          submitted_at: p[13],
+        };
+        const existing = pgBest.get(key);
+        const better =
+          !existing ||
+          candidate.score > Number(existing.score) ||
+          (candidate.score === Number(existing.score) && candidate.stars > Number(existing.stars)) ||
+          (candidate.score === Number(existing.score) &&
+            candidate.stars === Number(existing.stars) &&
+            candidate.verified_moves < Number(existing.verified_moves));
+        if (better) {
+          pgBest.set(key, candidate);
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ rows: [{ submission_id: candidate.submission_id }] }));
+        } else {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ rows: [] }));
+        }
+        return;
+      }
+
+      if (q.includes('UPDATE players')) {
+        const player = pgPlayers.get(String(p[0]));
+        if (!player) {
+          // Simulates PostgreSQL error/miss if player hadn't been committed yet
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ rows: [] }));
+          return;
+        }
+        player.verified_submissions += 1;
+        if (p[1] === 'daily') player.best_daily_score = Math.max(player.best_daily_score, Number(p[2]));
+        if (p[1] === 'friend') player.best_friend_score = Math.max(player.best_friend_score, Number(p[2]));
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ rows: [] }));
+        return;
+      }
+
+      if (q.includes('FROM leaderboard_best') && q.includes('WHERE player_id_hash = $3')) {
+        const cType = String(p[0]);
+        const cId = String(p[1]);
+        const playerHash = String(p[2]);
+        const entries = Array.from(pgBest.values())
+          .filter((r) => r.challenge_type === cType && r.challenge_id === cId)
+          .sort((a, b) => Number(b.score) - Number(a.score) || Number(a.verified_moves) - Number(b.verified_moves));
+        const idx = entries.findIndex((r) => r.player_id_hash === playerHash);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ rows: idx >= 0 ? [{ rank: idx + 1, ...entries[idx] }] : [] }));
+        return;
+      }
+
+      if (q.includes('SELECT tc.total, r.*')) {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ rows: [{ total: 0 }] }));
+        return;
+      }
+
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ rows: [] }));
+      return;
+    }
+
+    res.writeHead(404);
+    res.end();
+  });
+
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+  const address = server.address();
+  const port = typeof address === 'object' && address ? address.port : 0;
+  const gatewayUrl = `http://127.0.0.1:${port}`;
+
+  try {
+    // 1. Production config rejects non-HTTPS gateway URLs strictly
+    const prodRejected = resolveProductionStorage(
+      readEdgeRuntimeConfig(undefined, {
+        APP_ENV: 'production',
+        LEADERBOARD_STORAGE_DRIVER: 'postgres-http',
+        LEADERBOARD_DATABASE_URL: gatewayUrl,
+        LEADERBOARD_DATABASE_TOKEN: 'gw-secret-token-test',
+      }),
+    );
+    assert.equal(prodRejected.isConfigured, false);
+
+    // 2. Development config permits localhost HTTP gateway
+    const devResolved = resolveProductionStorage(
+      readEdgeRuntimeConfig(undefined, {
+        APP_ENV: 'development',
+        LEADERBOARD_STORAGE_DRIVER: 'postgres-http',
+        LEADERBOARD_DATABASE_URL: gatewayUrl,
+        LEADERBOARD_DATABASE_TOKEN: 'gw-secret-token-test',
+      }),
+    );
+    assert.equal(devResolved.isConfigured, true);
+    assert.equal(devResolved.driverName, 'postgres-http');
+
+    // 3. /api/v1/ready succeeds via real HTTP POST /sql
+    const readyRes = await handleEdgeRequest(new Request('http://localhost:3000/api/v1/ready'), {
+      storage: devResolved,
+      now: FIXED_NOW,
+    });
+    assert.equal(readyRes.status, 200);
+    assert.equal(capturedCalls[0].authHeader, 'Bearer gw-secret-token-test');
+
+    // 4. First-time POST /api/v1/leaderboards/submit persists sequentially & computes rank 1
+    const daily = generateDailyChallenge('2026-11-19');
+    const optimalActions = buildOptimalActionsForLevel(daily.level);
+    const submitRes = await handleEdgeRequest(
+      makeJsonPost('http://localhost:3000/api/v1/leaderboards/submit', {
+        challengeType: 'daily',
+        challengeId: daily.challengeId,
+        dateKey: daily.dateKey,
+        algoVersion: daily.algoVersion,
+        playerId: 'anon_pg_gateway_user_01',
+        displayLabel: 'نوید شیرازی',
+        actions: optimalActions,
+      }),
+      { storage: devResolved, now: FIXED_NOW },
+    );
+    assert.equal(submitRes.status, 201);
+    const submitBody = (await submitRes.json()) as {
+      submission: { duplicate: boolean; isNewBest: boolean; entry: { displayLabel: string; rank: number; score: number } };
+    };
+    assert.equal(submitBody.submission.duplicate, false);
+    assert.equal(submitBody.submission.isNewBest, true);
+    assert.equal(submitBody.submission.entry.displayLabel, 'نوید شیرازی');
+    assert.equal(submitBody.submission.entry.rank, 1);
+
+    // 5. Exact duplicate replay returns 200 duplicate=true, isNewBest=false
+    const dupRes = await handleEdgeRequest(
+      makeJsonPost('http://localhost:3000/api/v1/leaderboards/submit', {
+        challengeType: 'daily',
+        challengeId: daily.challengeId,
+        dateKey: daily.dateKey,
+        algoVersion: daily.algoVersion,
+        playerId: 'anon_pg_gateway_user_01',
+        displayLabel: 'نوید شیرازی',
+        actions: optimalActions,
+      }),
+      { storage: devResolved, now: FIXED_NOW },
+    );
+    assert.equal(dupRes.status, 200);
+    const dupBody = (await dupRes.json()) as {
+      submission: { duplicate: boolean; isNewBest: boolean; entry: { rank: number } };
+    };
+    assert.equal(dupBody.submission.duplicate, true);
+    assert.equal(dupBody.submission.isNewBest, false);
+    assert.equal(dupBody.submission.entry.rank, 1);
+
+    // 6. Slower replay with extra 4-turn rotation on same tile returns 201, duplicate=false, isNewBest=false, preserving best score
+    const slowerActions = [...optimalActions, optimalActions[0], optimalActions[0], optimalActions[0], optimalActions[0]];
+    const slowerRes = await handleEdgeRequest(
+      makeJsonPost('http://localhost:3000/api/v1/leaderboards/submit', {
+        challengeType: 'daily',
+        challengeId: daily.challengeId,
+        dateKey: daily.dateKey,
+        algoVersion: daily.algoVersion,
+        playerId: 'anon_pg_gateway_user_01',
+        displayLabel: 'نوید شیرازی',
+        actions: slowerActions,
+      }),
+      { storage: devResolved, now: FIXED_NOW },
+    );
+    assert.equal(slowerRes.status, 201);
+    const slowerBody = (await slowerRes.json()) as {
+      submission: { duplicate: boolean; isNewBest: boolean; entry: { score: number } };
+    };
+    assert.equal(slowerBody.submission.duplicate, false);
+    assert.equal(slowerBody.submission.isNewBest, false);
+    assert.equal(slowerBody.submission.entry.score, submitBody.submission.entry.score);
+
+    // 7. Wrong token fails safely with 503 STORAGE_UNAVAILABLE without leaking secrets
+    const badTokenAdapter = new PostgresHttpStorageAdapter({
+      endpointUrl: gatewayUrl,
+      authToken: 'wrong-secret-should-not-leak',
+      timeoutMs: 1500,
+    });
+    const failedRes = await handleEdgeRequest(new Request('http://localhost:3000/api/v1/ready'), {
+      storage: badTokenAdapter,
+      now: FIXED_NOW,
+    });
+    assert.equal(failedRes.status, 503);
+    const failedRaw = await failedRes.text();
+    assert.equal(failedRaw.includes('wrong-secret-should-not-leak'), false);
+    assert.equal(JSON.parse(failedRaw).error.code, 'STORAGE_UNAVAILABLE');
+  } finally {
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+  }
+});
+
+test('standalone gateway/server.mjs and scripts/postgres-http-gateway.mjs stay synchronized with 001_initial_schema.sql', () => {
+  const migrationSql = fs.readFileSync(
+    path.resolve(process.cwd(), 'edge/db/migrations/001_initial_schema.sql'),
+    'utf8',
+  );
+  const gatewayServer = fs.readFileSync(
+    path.resolve(process.cwd(), 'gateway/server.mjs'),
+    'utf8',
+  );
+  const rootGateway = fs.readFileSync(
+    path.resolve(process.cwd(), 'scripts/postgres-http-gateway.mjs'),
+    'utf8',
+  );
+
+  const requiredTables = [
+    'players',
+    'friend_challenges',
+    'challenge_nonces',
+    'verified_submissions',
+    'leaderboard_best',
+    'rate_limit_buckets',
+  ];
+
+  for (const tableName of requiredTables) {
+    const marker = `CREATE TABLE IF NOT EXISTS ${tableName}`;
+    assert.ok(migrationSql.includes(marker), `001_initial_schema.sql missing ${tableName}`);
+    assert.ok(gatewayServer.includes(marker), `gateway/server.mjs missing ${tableName}`);
+    assert.ok(rootGateway.includes(marker), `scripts/postgres-http-gateway.mjs missing ${tableName}`);
+  }
+});
+
+test('resolveProductionStorage supports neon-http with direct postgresql:// URI or https://.../sql endpoint using Neon-Connection-String header', async () => {
+  const secretConn = 'postgresql://neondb_owner:supersecret99@ep-qanat-test.eu-central-1.aws.neon.tech/neondb?sslmode=require';
+
+  // 1. Direct postgresql:// URI pasted into LEADERBOARD_DATABASE_URL under LEADERBOARD_STORAGE_DRIVER=neon-http
+  const resolvedFromUri = resolveProductionStorage(
+    readEdgeRuntimeConfig(undefined, {
+      APP_ENV: 'production',
+      LEADERBOARD_STORAGE_DRIVER: 'neon-http',
+      LEADERBOARD_DATABASE_URL: secretConn,
+    }),
+  );
+  assert.equal(resolvedFromUri.isConfigured, true);
+  assert.equal(resolvedFromUri.driverName, 'neon-http');
+
+  // 2. Intercept fetch on PostgresHttpStorageAdapter in neon-connection-string mode
+  const captured: Array<{ url: string; neonHeader: string | null; authHeader: string | null }> = [];
+  const neonAdapter = new PostgresHttpStorageAdapter({
+    endpointUrl: 'https://ep-qanat-test.eu-central-1.aws.neon.tech/sql',
+    authToken: secretConn,
+    authMode: 'neon-connection-string',
+    driverName: 'neon-http',
+    fetchImpl: async (input, init) => {
+      const headers = new Headers(init?.headers);
+      captured.push({
+        url: String(input),
+        neonHeader: headers.get('Neon-Connection-String'),
+        authHeader: headers.get('Authorization'),
+      });
+      return new Response(JSON.stringify({ rows: [{ alive: 1 }] }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    },
+  });
+
+  const pingRes = await handleEdgeRequest(new Request('https://ghanatchi.dentalfy.ir/api/v1/ready'), {
+    storage: neonAdapter,
+    now: FIXED_NOW,
+  });
+  assert.equal(pingRes.status, 200);
+  assert.equal(captured.length, 1);
+  assert.equal(captured[0].url, 'https://ep-qanat-test.eu-central-1.aws.neon.tech/sql');
+  assert.equal(captured[0].neonHeader, secretConn);
+  assert.equal(captured[0].authHeader, null);
+
+  const pingText = await pingRes.text();
+  assert.equal(pingText.includes('supersecret99'), false);
+  assert.equal(JSON.parse(pingText).storage.driver, 'neon-http');
+
+  // 3. Auto-upgrade postgres-http when pointed at *.neon.tech with postgresql:// token
+  const autoUpgraded = resolveProductionStorage(
+    readEdgeRuntimeConfig(undefined, {
+      APP_ENV: 'production',
+      LEADERBOARD_STORAGE_DRIVER: 'postgres-http',
+      LEADERBOARD_DATABASE_URL: 'https://ep-qanat-test.eu-central-1.aws.neon.tech/sql',
+      LEADERBOARD_DATABASE_TOKEN: secretConn,
+    }),
+  );
+  assert.equal(autoUpgraded.isConfigured, true);
+  assert.equal(autoUpgraded.driverName, 'neon-http');
+});
+
+test('readEdgeRuntimeConfig supports QANATCHI_CONFIG JSON object bundles, { value } objects, and native JSON booleans/numbers', () => {
+  const fromBundle = readEdgeRuntimeConfig(undefined, {
+    QANATCHI_CONFIG: {
+      APP_ENV: 'production',
+      LEADERBOARD_STORAGE_DRIVER: 'neon-http',
+      LEADERBOARD_DATABASE_URL: 'postgresql://user:pass@ep-bundle.eu-central-1.aws.neon.tech/neondb',
+      EDGE_SIGNING_SECRET: 'bundle_signing_secret_at_least_32_chars',
+      REQUIRE_ATTEMPT_TOKEN: true,
+      RATE_LIMIT_MAX_PER_MIN: 90,
+      ENABLE_STRUCTURED_LOGS: false,
+    },
+  });
+  assert.equal(fromBundle.appEnv, 'production');
+  assert.equal(fromBundle.storageDriver, 'neon-http');
+  assert.equal(fromBundle.requireAttemptToken, true);
+  assert.equal(fromBundle.rateLimitMaxPerMin, 90);
+  assert.equal(fromBundle.structuredLogsEnabled, false);
+
+  const fromWrappedValues = readEdgeRuntimeConfig(undefined, {
+    LEADERBOARD_STORAGE_DRIVER: { value: 'neon-http' },
+    LEADERBOARD_DATABASE_URL: { value: 'postgresql://user:pass@ep-wrap.eu-central-1.aws.neon.tech/neondb' },
+  });
+  const storage = resolveProductionStorage(fromWrappedValues);
+  assert.equal(storage.isConfigured, true);
+  assert.equal(storage.driverName, 'neon-http');
+});
+
+test('structured Edge logs include errorCode on handled 4xx and 5xx error responses without exposing secrets', async () => {
+  const capturedWarns: string[] = [];
+  const origWarn = console.warn;
+  console.warn = (...args: unknown[]) => {
+    capturedWarns.push(args.map((a) => String(a)).join(' '));
+  };
+
+  try {
+    const storage = new InMemoryTestStorageAdapter();
+    const daily = generateDailyChallenge('2026-11-19');
+    const res = await handleEdgeRequest(
+      makeJsonPost('https://ghanatchi.dentalfy.ir/api/v1/leaderboards/submit', {
+        challengeType: 'daily',
+        challengeId: daily.challengeId,
+        dateKey: daily.dateKey,
+        algoVersion: daily.algoVersion,
+        playerId: 'anon_log_check_user_01',
+        actions: buildOptimalActionsForLevel(daily.level),
+      }),
+      {
+        storage,
+        now: FIXED_NOW,
+        configOverrides: {
+          requireAttemptToken: true,
+          structuredLogsEnabled: true,
+          signingSecret: 'signing_secret_for_structured_log_test_32',
+        },
+      },
+    );
+    assert.equal(res.status, 400);
+    assert.equal(capturedWarns.length, 1);
+    const logged = JSON.parse(capturedWarns[0]) as { status: number; errorCode?: string };
+    assert.equal(logged.status, 400);
+    assert.equal(logged.errorCode, 'ATTEMPT_TOKEN_REQUIRED');
+  } finally {
+    console.warn = origWarn;
+  }
+});

@@ -6,10 +6,7 @@ interface DestinationArtworkSvgProps {
 }
 
 /**
- * 20 distinctive lightweight local SVG destination scenes (zero external dependencies).
- * Special visual care is given to:
- * - Abuzeydabad: golden-hour desert dunes, earthen caravanserai/oasis arch, palms & glowing qanat vein.
- * - Ijrud: cool slate-emerald highland ridges, rolling green valley slopes & winding canyon creek.
+ * 50 distinctive lightweight local SVG destination scenes across 12 Iranian routes (zero external dependencies).
  * Every destination has its own unique architectural/landscape composition.
  */
 export function DestinationArtworkSvg({
@@ -981,7 +978,6 @@ export function DestinationArtworkSvg({
       );
 
     case 'torbat_heydarieh':
-    default:
       return (
         <svg viewBox="0 0 240 96" className={cls} preserveAspectRatio="xMidYMid slice" aria-hidden="true">
           <defs>
@@ -992,7 +988,7 @@ export function DestinationArtworkSvg({
             </linearGradient>
           </defs>
           <rect width="240" height="96" fill="url(#dest-torbat)" />
-          {/* Saffron plateau & radiant turquoise finale medallion */}
+          {/* Saffron plateau & radiant turquoise medallion */}
           <polygon points="0,68 70,28 144,58 206,24 240,52 240,96 0,96" fill="#281E3B" />
           <path d="M98 44 Q120 18 142 44 Z" fill="#24BFD4" stroke="#F6D47A" strokeWidth="1.3" />
           <rect x="86" y="44" width="68" height="28" fill="#34253B" stroke="#F0C66B" strokeWidth="1" />
@@ -1005,6 +1001,226 @@ export function DestinationArtworkSvg({
           </g>
           <rect x="26" y="81" width="188" height="6" rx="3" fill="#68F4FF" />
           <circle cx="120" cy="84" r="6.5" fill="#F6D47A" stroke="#153B4A" strokeWidth="1.6" />
+        </svg>
+      );
+
+    // =========================================================================
+    // ROUTE 11 — SHAHSAVAN HERITAGE (Moghan Plain to Sabalan Slopes)
+    // =========================================================================
+    case 'parsabad':
+      return (
+        <svg viewBox="0 0 240 96" className={cls} preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+          <defs>
+            <linearGradient id="dest-parsabad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#0F2128" />
+              <stop offset="58%" stopColor="#1E4B4B" />
+              <stop offset="100%" stopColor="#3B7862" />
+            </linearGradient>
+          </defs>
+          <rect width="240" height="96" fill="url(#dest-parsabad)" />
+          {/* Wide open Moghan plain & Aras valley river */}
+          <path d="M0 64 Q80 54 160 62 T240 56 L240 96 L0 96 Z" fill="#244B3A" />
+          <path d="M0 76 Q110 66 240 76 L240 96 L0 96 Z" fill="#19362B" />
+          {/* Traditional felt camp silhouette */}
+          <path d="M52 72 Q68 48 84 72 Z" fill="#5D3D2B" stroke="#E07A54" strokeWidth="1" />
+          <path d="M164 72 Q178 52 192 72 Z" fill="#5D3D2B" stroke="#E07A54" strokeWidth="1" />
+          <path d="M14 84 Q120 76 226 84" stroke="#43C2A8" strokeWidth="5" fill="none" strokeLinecap="round" />
+        </svg>
+      );
+
+    case 'bileh_savar':
+      return (
+        <svg viewBox="0 0 240 96" className={cls} preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+          <defs>
+            <linearGradient id="dest-bileh" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#12212B" />
+              <stop offset="58%" stopColor="#264C4C" />
+              <stop offset="100%" stopColor="#46765C" />
+            </linearGradient>
+          </defs>
+          <rect width="240" height="96" fill="url(#dest-bileh)" />
+          {/* Rolling borderland meadow hills */}
+          <path d="M0 58 Q60 36 120 56 T240 48 L240 96 L0 96 Z" fill="#26473D" />
+          <path d="M0 72 Q84 58 172 72 T240 66 L240 96 L0 96 Z" fill="#1C372F" />
+          {/* Subtle Varni geometric chevron ribbon */}
+          <polyline points="20,84 40,76 60,84 80,76 100,84 120,76 140,84 160,76 180,84 200,76 220,84" fill="none" stroke="#4FE0C8" strokeWidth="2.4" />
+        </svg>
+      );
+
+    case 'germi':
+      return (
+        <svg viewBox="0 0 240 96" className={cls} preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+          <defs>
+            <linearGradient id="dest-germi" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#11202A" />
+              <stop offset="58%" stopColor="#29484B" />
+              <stop offset="100%" stopColor="#526C56" />
+            </linearGradient>
+          </defs>
+          <rect width="240" height="96" fill="url(#dest-germi)" />
+          {/* Stepped highland valley ridges of Germi */}
+          <polygon points="0,66 54,26 118,56 178,22 240,54 240,96 0,96" fill="#233C3B" />
+          <path d="M0 70 Q56 54 114 74 L114 96 L0 96 Z" fill="#2E5443" />
+          <path d="M126 74 Q182 54 240 70 L240 96 L126 96 Z" fill="#264738" />
+          <path d="M114 48 Q106 72 118 96 L132 96 Q122 72 126 48 Z" fill="#4CE0CA" />
+        </svg>
+      );
+
+    case 'meshgin_shahr':
+      return (
+        <svg viewBox="0 0 240 96" className={cls} preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+          <defs>
+            <linearGradient id="dest-meshgin" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#0F1F2E" />
+              <stop offset="56%" stopColor="#234857" />
+              <stop offset="100%" stopColor="#3E6D68" />
+            </linearGradient>
+          </defs>
+          <rect width="240" height="96" fill="url(#dest-meshgin)" />
+          {/* High gorge cliffs & stone suspension silhouette */}
+          <polygon points="0,58 64,20 96,96 0,96" fill="#253942" />
+          <polygon points="144,96 176,22 240,56 240,96" fill="#21343D" />
+          <path d="M56 44 Q120 58 184 44" stroke="#E07A54" strokeWidth="2.2" fill="none" />
+          <path d="M98 96 L112 52 L128 52 L142 96 Z" fill="#43D8C0" />
+        </svg>
+      );
+
+    case 'ardabil_sabalan':
+      return (
+        <svg viewBox="0 0 240 96" className={cls} preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+          <defs>
+            <linearGradient id="dest-sabalan" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#0D1D2C" />
+              <stop offset="54%" stopColor="#1D444E" />
+              <stop offset="100%" stopColor="#33695C" />
+            </linearGradient>
+          </defs>
+          <rect width="240" height="96" fill="url(#dest-sabalan)" />
+          {/* Towering snow-capped Sabalan summit */}
+          <polygon points="0,72 62,36 120,14 178,36 240,68 240,96 0,96" fill="#1F3B40" />
+          <polygon points="120,14 140,32 126,34 114,29 100,34" fill="#EFF9FA" opacity="0.78" />
+          {/* Summer pasture felt alachiq & spring channel */}
+          <path d="M44 74 Q58 54 72 74 Z" fill="#5D3D2B" stroke="#E6BA5E" strokeWidth="1" />
+          <path d="M168 74 Q182 54 196 74 Z" fill="#5D3D2B" stroke="#E6BA5E" strokeWidth="1" />
+          <rect x="0" y="74" width="240" height="22" fill="#18312B" />
+          <rect x="28" y="82" width="184" height="6" rx="3" fill="#5CEBDC" />
+        </svg>
+      );
+
+    // =========================================================================
+    // ROUTE 12 — TURKMEN SAHRA HERITAGE
+    // =========================================================================
+    case 'gonbad_kavus':
+      return (
+        <svg viewBox="0 0 240 96" className={cls} preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+          <defs>
+            <linearGradient id="dest-gonbadkavus" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#1C1426" />
+              <stop offset="56%" stopColor="#613332" />
+              <stop offset="100%" stopColor="#BD7B3A" />
+            </linearGradient>
+          </defs>
+          <rect width="240" height="96" fill="url(#dest-gonbadkavus)" />
+          <path d="M0 70 Q120 60 240 70 L240 96 L0 96 Z" fill="#3B241E" />
+          {/* Tall monumental brick flanged tower of Gonbad-e Kavus */}
+          <polygon points="111,72 114,22 126,22 129,72" fill="#784A30" stroke="#E5A83B" strokeWidth="1" />
+          <polygon points="113,22 120,10 127,22" fill="#9A603B" stroke="#E5A83B" strokeWidth="0.9" />
+          <rect x="26" y="80" width="188" height="6" rx="3" fill="#38D4E2" />
+        </svg>
+      );
+
+    case 'aq_qala':
+      return (
+        <svg viewBox="0 0 240 96" className={cls} preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+          <defs>
+            <linearGradient id="dest-aqqala" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#1B1628" />
+              <stop offset="56%" stopColor="#563134" />
+              <stop offset="100%" stopColor="#A66A3A" />
+            </linearGradient>
+          </defs>
+          <rect width="240" height="96" fill="url(#dest-aqqala)" />
+          {/* Brick multi-arch river bridge over Gorgan-Rud */}
+          <rect x="18" y="48" width="204" height="24" fill="#683D2D" stroke="#E5A83B" strokeOpacity="0.6" />
+          <g fill="#221A20">
+            <path d="M36 72 L36 58 Q48 48 60 58 L60 72 Z" />
+            <path d="M108 72 L108 56 Q120 46 132 56 L132 72 Z" />
+            <path d="M180 72 L180 58 Q192 48 204 58 L204 72 Z" />
+          </g>
+          <rect x="0" y="72" width="240" height="24" fill="#1C7C8E" />
+          <line x1="28" y1="84" x2="98" y2="84" stroke="#D2FEFF" strokeWidth="1.6" strokeLinecap="round" />
+          <line x1="142" y1="84" x2="212" y2="84" stroke="#D2FEFF" strokeWidth="1.6" strokeLinecap="round" />
+        </svg>
+      );
+
+    case 'bandar_torkaman':
+      return (
+        <svg viewBox="0 0 240 96" className={cls} preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+          <defs>
+            <linearGradient id="dest-bandartorkaman" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#14192E" />
+              <stop offset="54%" stopColor="#2D4A66" />
+              <stop offset="100%" stopColor="#467C8C" />
+            </linearGradient>
+          </defs>
+          <rect width="240" height="96" fill="url(#dest-bandartorkaman)" />
+          {/* Warm Caspian coastal sunset & wooden pier silhouettes */}
+          <circle cx="184" cy="34" r="10" fill="#F4C462" opacity="0.85" />
+          <rect x="0" y="60" width="240" height="36" fill="#1A6F85" />
+          <rect x="0" y="66" width="134" height="5" fill="#4E3224" />
+          <rect x="40" y="66" width="5" height="16" fill="#3B2418" />
+          <rect x="86" y="66" width="5" height="16" fill="#3B2418" />
+          <rect x="126" y="66" width="5" height="16" fill="#3B2418" />
+          <line x1="20" y1="84" x2="104" y2="84" stroke="#D0FCFF" strokeWidth="1.6" strokeLinecap="round" />
+          <line x1="146" y1="78" x2="220" y2="78" stroke="#F4C462" strokeWidth="1.4" strokeLinecap="round" opacity="0.7" />
+        </svg>
+      );
+
+    case 'gomishan':
+      return (
+        <svg viewBox="0 0 240 96" className={cls} preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+          <defs>
+            <linearGradient id="dest-gomishan" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#16192C" />
+              <stop offset="56%" stopColor="#35525C" />
+              <stop offset="100%" stopColor="#5D7D72" />
+            </linearGradient>
+          </defs>
+          <rect width="240" height="96" fill="url(#dest-gomishan)" />
+          {/* Caspian wetland lagoons & tall reed clusters */}
+          <rect x="0" y="64" width="240" height="32" fill="#1C7282" />
+          <path d="M0 74 Q64 60 128 74 T240 68 L240 96 L0 96 Z" fill="#2A473C" opacity="0.65" />
+          <g stroke="#8E7043" strokeWidth="2" strokeLinecap="round">
+            <line x1="34" y1="82" x2="30" y2="46" />
+            <line x1="42" y1="82" x2="44" y2="42" />
+            <line x1="50" y1="82" x2="54" y2="50" />
+            <line x1="190" y1="82" x2="186" y2="46" />
+            <line x1="198" y1="82" x2="200" y2="42" />
+            <line x1="206" y1="82" x2="210" y2="50" />
+          </g>
+          <line x1="76" y1="78" x2="164" y2="78" stroke="#BFFAFF" strokeWidth="1.6" strokeLinecap="round" />
+        </svg>
+      );
+
+    case 'maraveh_tappeh':
+    default:
+      return (
+        <svg viewBox="0 0 240 96" className={cls} preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+          <defs>
+            <linearGradient id="dest-maraveh" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#1A1324" />
+              <stop offset="54%" stopColor="#5C3034" />
+              <stop offset="100%" stopColor="#BF7D3C" />
+            </linearGradient>
+          </defs>
+          <rect width="240" height="96" fill="url(#dest-maraveh)" />
+          {/* Smooth rolling green-gold hills of Maraveh Tappeh & Atrak river pulse */}
+          <path d="M0 60 Q58 32 122 56 T240 44 L240 96 L0 96 Z" fill="#4A3424" />
+          <path d="M0 72 Q76 52 152 68 T240 60 L240 96 L0 96 Z" fill="#32221D" />
+          {/* Subtle Turkmen octagonal gol motif & radiant finale channel */}
+          <rect x="20" y="80" width="200" height="6" rx="3" fill="#5CECF7" />
+          <polygon points="113,77 127,77 131,83 127,89 113,89 109,83" fill="#E5A83B" stroke="#8C2B32" strokeWidth="1.5" />
+          <circle cx="120" cy="83" r="2.8" fill="#9BF9FF" />
         </svg>
       );
   }

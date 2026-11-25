@@ -52,7 +52,7 @@ export function RegionalMapScreen({
       </header>
 
       <main className="flex-1 w-full max-w-5xl mx-auto px-4 sm:px-6 py-5 sm:py-8 flex flex-col gap-6">
-        {/* Overall 80-Level / 40-Destination / 10-Route Progress Summary */}
+        {/* Overall 100-Level / 50-Destination / 12-Route Progress Summary */}
         <section
           aria-label="خلاصه پیشرفت کل کمپین"
           className="rounded-2xl bg-[#1D1712] border border-[#463626] p-4 sm:p-5"
@@ -60,7 +60,7 @@ export function RegionalMapScreen({
           <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
             <div className="flex items-center gap-2 font-semibold text-[#FBF4E4]">
               <Compass className="w-4 h-4 text-[#23B8CA] shrink-0" aria-hidden="true" />
-              <span>پیشرفت کلی سفر ایران (۱۰ مسیر · ۴۰ مقصد)</span>
+              <span>پیشرفت کلی سفر ایران (۱۲ مسیر · ۵۰ مقصد)</span>
             </div>
             <div className="flex items-center gap-3 text-xs sm:text-sm text-[#D6C19D] tabular-nums">
               <span data-testid="map-campaign-progress">
@@ -92,16 +92,16 @@ export function RegionalMapScreen({
 
           <p className="mt-2.5 text-xs text-[#BCA786]">
             {campaign.isCampaignCompleted
-              ? 'هر ۱۰ مسیر و ۴۰ مقصد ایران احیا شدند! می‌توانید هر مرحله را برای ثبت رکورد بهتر تکرار کنید.'
+              ? 'هر ۱۲ مسیر و ۵۰ مقصد ایران احیا شدند! می‌توانید هر مرحله را برای ثبت رکورد بهتر تکرار کنید.'
               : `مسیرهای بازشده: ${toPersianDigits(campaign.unlockedRegionsCount)} از ${toPersianDigits(
                   campaign.totalRegionsCount,
                 )} · با تکمیل مراحل هر مسیر، مسیر بعدی به ترتیب باز می‌شود.`}
           </p>
 
-          {/* Quick-Jump 10-Route Strip so all 10 routes are reachable without excessive scrolling */}
+          {/* Quick-Jump 12-Route Strip (2x6, 4x3, 6x2 — zero orphan slots across all breakpoints) */}
           <nav
-            aria-label="دسترسی سریع به ده مسیر ایران"
-            className="mt-4 pt-3.5 border-t border-[#34281E] grid grid-cols-2 sm:grid-cols-5 gap-1.5"
+            aria-label="دسترسی سریع به دوازده مسیر ایران"
+            className="mt-4 pt-3.5 border-t border-[#34281E] grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-1.5"
           >
             {REGIONS.map((region) => {
               const rStats = getRegionProgress(progress, region.id);
@@ -112,7 +112,11 @@ export function RegionalMapScreen({
                     ? 'اصفهان'
                     : region.id === 'northwest'
                       ? 'شمال‌غرب'
-                      : region.nameFa;
+                      : region.id === 'shahsavan'
+                        ? 'شاهسون'
+                        : region.id === 'turkmen_sahra'
+                          ? 'ترکمن‌صحرا'
+                          : region.nameFa;
 
               return (
                 <button
@@ -140,7 +144,7 @@ export function RegionalMapScreen({
                     <CheckCircle2 className="w-3.5 h-3.5 text-[#7DF8C4] shrink-0" aria-hidden="true" />
                   ) : rStats.unlocked ? (
                     <span className="text-[11px] text-[#6CECF5] shrink-0">
-                      {toPersianDigits(rStats.completedCount)}/۸
+                      {toPersianDigits(rStats.completedCount)}/{toPersianDigits(rStats.totalCount)}
                     </span>
                   ) : (
                     <Lock className="w-3 h-3 text-[#7D6B57] shrink-0" aria-hidden="true" />
@@ -151,8 +155,8 @@ export function RegionalMapScreen({
           </nav>
         </section>
 
-        {/* Interactive 10-Route Journey Grid (5 balanced 2-column rows on md+) */}
-        <section aria-label="ده مسیر ایران" className="relative">
+        {/* Interactive 12-Route Journey Grid (6 balanced 2-column rows on md+) */}
+        <section aria-label="دوازده مسیر ایران" className="relative">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
             {REGIONS.map((region, idx) => {
               const stats = getRegionProgress(progress, region.id);
@@ -233,20 +237,31 @@ export function RegionalMapScreen({
                           {region.storyFa}
                         </p>
 
-                        {/* 4 Destinations Roster inside this Route */}
+                        {/* Destinations Roster inside this Route (supports 4 or 5 destinations dynamically) */}
                         <div className="mt-3.5 pt-3 border-t border-[#32271D]">
                           <div className="flex items-center gap-1.5 text-[11px] text-[#A89476] mb-2">
                             <MapPin className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
-                            <span>مقاصد این مسیر (۴ مقصد · ۸ مرحله):</span>
+                            <span>
+                              مقاصد این مسیر ({toPersianDigits(destinations.length)} مقصد ·{' '}
+                              {toPersianDigits(region.levelIds.length)} مرحله):
+                            </span>
                           </div>
-                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                            {destinations.map((dest) => {
+                          <div
+                            className={`grid gap-2 ${
+                              destinations.length > 4
+                                ? 'grid-cols-2 sm:grid-cols-3'
+                                : 'grid-cols-2 sm:grid-cols-4'
+                            }`}
+                          >
+                            {destinations.map((dest, destIdx) => {
                               const dStats = getDestinationProgress(progress, dest.id);
+                              const spanBalanced =
+                                destinations.length === 5 && destIdx === 4 ? 'col-span-2 sm:col-span-2' : '';
                               return (
                                 <div
                                   key={dest.id}
                                   data-testid={`map-dest-${dest.id}`}
-                                  className="px-2.5 py-1.5 rounded-lg bg-[#16120E]/80 border border-[#34291E] flex items-center justify-between gap-1 text-xs tabular-nums"
+                                  className={`px-2.5 py-1.5 rounded-lg bg-[#16120E]/80 border border-[#34291E] flex items-center justify-between gap-1 text-xs tabular-nums ${spanBalanced}`}
                                 >
                                   <span
                                     className={`font-semibold truncate ${

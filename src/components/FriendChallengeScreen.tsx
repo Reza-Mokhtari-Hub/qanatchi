@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   AlertCircle,
   ArrowRight,
@@ -11,6 +11,11 @@ import {
   Star,
   Users,
 } from 'lucide-react';
+import {
+  createOnlineFriendChallenge,
+  fetchOnlineFriendChallenge,
+  getOrCreateAnonymousPlayerId,
+} from '../api/edgeClient';
 import { DIFFICULTY_LABELS_FA } from '../campaign/regions';
 import {
   buildFriendChallengeUrl,
@@ -27,6 +32,7 @@ import type {
   SavedEngagementData,
 } from '../engine/types';
 import { LeaderboardPanel } from './LeaderboardPanel';
+import { PlayerNicknameControl } from './PlayerNicknameControl';
 
 interface FriendChallengeScreenProps {
   activeChallenge: FriendChallengeDefinition;
@@ -64,6 +70,29 @@ export function FriendChallengeScreen({
   const [manualCodeInput, setManualCodeInput] = useState<string>('');
   const [manualError, setManualError] = useState<string>('');
   const [rollCounter, setRollCounter] = useState<number>(1);
+  const [onlineChallengeNotice, setOnlineChallengeNotice] = useState<{
+    type: 'expired' | 'info';
+    text: string;
+  } | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    setOnlineChallengeNotice(null);
+    void fetchOnlineFriendChallenge(activeChallenge.challengeId).then((res) => {
+      if (!active) return;
+      if (res.status === 'expired') {
+        setOnlineChallengeNotice({ type: 'expired', text: res.messageFa });
+      } else if (res.status === 'ok' && res.data.participantCount > 0) {
+        setOnlineChallengeNotice({
+          type: 'info',
+          text: `${toPersianDigits(res.data.participantCount)} بازیکن نتیجه تأییدشده در این رقابت ثبت کرده‌اند.`,
+        });
+      }
+    });
+    return () => {
+      active = false;
+    };
+  }, [activeChallenge.challengeId]);
 
   const shareUrl = buildFriendChallengeUrl(activeChallenge.challengeId);
   const existingRecord = engagement.friendRecords[activeChallenge.challengeId];
@@ -72,6 +101,15 @@ export function FriendChallengeScreen({
     .filter((rec) => rec.completed)
     .sort((a, b) => b.completedAt.localeCompare(a.completedAt))
     .slice(0, 6);
+
+  const registerOnlineInBackground = (challengeId: string, diff: Difficulty | 'any') => {
+    const playerId = getOrCreateAnonymousPlayerId();
+    void createOnlineFriendChallenge({
+      challengeId,
+      difficulty: diff,
+      playerId,
+    });
+  };
 
   const handleGenerateNew = (diff: Difficulty | 'any' = selectedDifficulty) => {
     const nextCount = rollCounter + 1;
@@ -83,9 +121,11 @@ export function FriendChallengeScreen({
     setShareFeedback('');
     setCopiedRecently(false);
     setManualError('');
+    registerOnlineInBackground(nextChallenge.challengeId, diff);
   };
 
   const handleCopyLink = async () => {
+    registerOnlineInBackground(activeChallenge.challengeId, activeChallenge.difficulty);
     const outcome = await copyChallengeLink(shareUrl);
     setShareFeedback(outcome.messageFa);
     if (outcome.ok) {
@@ -95,6 +135,7 @@ export function FriendChallengeScreen({
   };
 
   const handleShareLink = async () => {
+    registerOnlineInBackground(activeChallenge.challengeId, activeChallenge.difficulty);
     const outcome = await shareChallengeLink({
       title: `قنات‌چی — رقابت ${activeChallenge.titleFa}`,
       text: buildFriendShareTextFa(activeChallenge),
@@ -225,6 +266,17 @@ export function FriendChallengeScreen({
               </span>
               <span>حداقل حرکت: {toPersianDigits(activeChallenge.level.expectedMinMoves)}</span>
             </div>
+
+            {onlineChallengeNotice && (
+              <p
+                data-testid="friend-online-notice"
+                className={`text-xs sm:text-sm font-medium ${
+                  onlineChallengeNotice.type === 'expired' ? 'text-[#FCA5A5]' : 'text-[#8ADCE5]'
+                }`}
+              >
+                {onlineChallengeNotice.text}
+              </p>
+            )}
 
             {/* Local Record for this Challenge if already played */}
             {existingRecord && existingRecord.completed && (
@@ -403,6 +455,9 @@ export function FriendChallengeScreen({
             </p>
           )}
         </section>
+
+        {/* Player Leaderboard Display Name */}
+        <PlayerNicknameControl />
 
         {/* Global Server Leaderboard for this Friend Challenge (distinct from local history) */}
         <LeaderboardPanel

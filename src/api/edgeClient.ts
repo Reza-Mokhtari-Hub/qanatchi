@@ -1,11 +1,18 @@
 import type {
+  ApiAttemptStartResponse,
   ApiDailyChallengeResponse,
   ApiErrorBody,
+  ApiFriendChallengeCreateResponse,
+  ApiFriendChallengeGetResponse,
+  ApiGlobalLeaderboardResponse,
   ApiHealthResponse,
   ApiLeaderboardListResponse,
   ApiLeaderboardSubmitResponse,
+  ApiPlayerProfileResponse,
+  ApiReadyResponse,
   ApiVerifyChallengeResponse,
 } from '../../edge/types';
+import type { Difficulty } from '../engine/types';
 import type {
   ChallengeVerifyRequestPayload,
   TileRotationAction,
@@ -23,7 +30,8 @@ declare global {
 
 /**
  * Resolve configurable Edge API base URL without rebuilding gameplay logic.
- * Priority: runtime `window.__QANATCHI_API_BASE__` -> Vite `VITE_API_BASE_URL` -> "" (same-origin).
+ * Priority: explicit arg -> runtime `window.__QANATCHI_API_BASE__` ->
+ * `VITE_EDGE_API_URL` -> `VITE_API_BASE_URL` -> "" (same-origin).
  */
 export function resolveApiBaseUrl(explicitBase?: string): string {
   if (typeof explicitBase === 'string') {
@@ -32,13 +40,20 @@ export function resolveApiBaseUrl(explicitBase?: string): string {
   if (typeof window !== 'undefined' && typeof window.__QANATCHI_API_BASE__ === 'string') {
     return window.__QANATCHI_API_BASE__.trim().replace(/\/+$/, '');
   }
-  const viteBase =
-    typeof import.meta !== 'undefined' &&
-    import.meta.env &&
-    typeof import.meta.env.VITE_API_BASE_URL === 'string'
-      ? import.meta.env.VITE_API_BASE_URL
-      : '';
-  return viteBase.trim().replace(/\/+$/, '');
+  const metaEnv =
+    typeof import.meta !== 'undefined' && import.meta.env
+      ? (import.meta.env as Record<string, unknown>)
+      : null;
+
+  const viteEdgeUrl =
+    metaEnv && typeof metaEnv.VITE_EDGE_API_URL === 'string' ? metaEnv.VITE_EDGE_API_URL : '';
+  if (viteEdgeUrl.trim()) {
+    return viteEdgeUrl.trim().replace(/\/+$/, '');
+  }
+
+  const viteLegacyBase =
+    metaEnv && typeof metaEnv.VITE_API_BASE_URL === 'string' ? metaEnv.VITE_API_BASE_URL : '';
+  return viteLegacyBase.trim().replace(/\/+$/, '');
 }
 
 /**
@@ -83,6 +98,17 @@ export function getOrCreateAnonymousPlayerId(): string {
   }
 
   return generated;
+}
+
+export function createClientIdempotencyKey(prefix = 'sub'): string {
+  try {
+    if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+      return `${prefix}_${crypto.randomUUID().replace(/-/g, '')}`;
+    }
+  } catch {
+    // Fallback below
+  }
+  return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
 }
 
 export type FetchLike = typeof fetch;
@@ -162,12 +188,26 @@ function isValidHealthResponse(json: unknown): json is ApiHealthResponse {
   );
 }
 
+function isValidReadyResponse(json: unknown): json is ApiReadyResponse {
+  if (!isRecord(json) || json.ok !== true) return false;
+  return json.ready === true && isRecord(json.storage) && json.storage.reachable === true;
+}
+
 function isValidDailyResponse(json: unknown): json is ApiDailyChallengeResponse {
   if (!isRecord(json) || json.ok !== true || !isRecord(json.daily)) return false;
   return (
     typeof json.daily.challengeId === 'string' &&
     typeof json.daily.dateKey === 'string' &&
     typeof json.daily.algoVersion === 'number'
+  );
+}
+
+function isValidAttemptStartResponse(json: unknown): json is ApiAttemptStartResponse {
+  if (!isRecord(json) || json.ok !== true || !isRecord(json.attempt)) return false;
+  return (
+    typeof json.attempt.attemptToken === 'string' &&
+    typeof json.attempt.nonceId === 'string' &&
+    typeof json.attempt.challengeId === 'string'
   );
 }
 
@@ -194,9 +234,35 @@ function isValidLeaderboardListResponse(json: unknown): json is ApiLeaderboardLi
   );
 }
 
+function isValidGlobalLeaderboardResponse(json: unknown): json is ApiGlobalLeaderboardResponse {
+  if (!isRecord(json) || json.ok !== true || !isRecord(json.leaderboard)) return false;
+  const lb = json.leaderboard;
+  return (
+    lb.scope === 'global' &&
+    typeof lb.total === 'number' &&
+    typeof lb.hasMore === 'boolean' &&
+    Array.isArray(lb.entries)
+  );
+}
+
 function isValidLeaderboardSubmitResponse(json: unknown): json is ApiLeaderboardSubmitResponse {
   if (!isRecord(json) || json.ok !== true || !isRecord(json.submission)) return false;
   return json.submission.accepted === true && isRecord(json.submission.entry);
+}
+
+function isValidFriendChallengeResponse(
+  json: unknown,
+): json is ApiFriendChallengeCreateResponse | ApiFriendChallengeGetResponse {
+  if (!isRecord(json) || json.ok !== true || !isRecord(json.friendChallenge)) return false;
+  return typeof json.friendChallenge.challengeId === 'string';
+}
+
+function isValidPlayerProfileResponse(json: unknown): json is ApiPlayerProfileResponse {
+  if (!isRecord(json) || json.ok !== true || !isRecord(json.profile)) return false;
+  return (
+    typeof json.profile.playerIdHash === 'string' &&
+    typeof json.profile.displayLabel === 'string'
+  );
 }
 
 export type ApiHealthResult =
@@ -226,6 +292,23 @@ export async function fetchApiHealth(options?: EdgeClientOptions): Promise<ApiHe
     status: 'offline',
     messageFa: 'پاسخ معتبری از سرور لبه دریافت نشد؛ بازی در حالت آفلاین ادامه دارد.',
   };
+}
+
+export async function fetchApiReady(
+  options?: EdgeClientOptions,
+): Promise<{ ready: boolean; latencyMs?: number; code?: string }> {
+  const base = resolveApiBaseUrl(options?.baseUrl);
+  const res = await fetchJsonWithTimeout(
+    `${base}/api/v1/ready`,
+    { method: 'GET', headers: { Accept: 'application/json' } },
+    options,
+  );
+  if (!res.networkOk) return { ready: false, code: 'OFFLINE' };
+  if (res.status === 200 && isValidReadyResponse(res.json)) {
+    return { ready: true, latencyMs: res.json.storage.latencyMs };
+  }
+  const err = extractApiError(res.json);
+  return { ready: false, code: err?.code ?? 'NOT_READY' };
 }
 
 export type ServerDailyResult =
@@ -262,13 +345,44 @@ export async function fetchServerDailyMetadata(
   };
 }
 
+export async function startChallengeAttempt(
+  payload: {
+    challengeType: VerifiableChallengeType;
+    challengeId: string;
+    dateKey?: string;
+    levelId?: number;
+    algoVersion: number;
+    playerId: string;
+  },
+  options?: EdgeClientOptions,
+): Promise<{ ok: true; data: ApiAttemptStartResponse['attempt'] } | { ok: false }> {
+  const base = resolveApiBaseUrl(options?.baseUrl);
+  const res = await fetchJsonWithTimeout(
+    `${base}/api/v1/challenges/start`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+      },
+      body: JSON.stringify(payload),
+    },
+    options,
+  );
+  if (!res.networkOk) return { ok: false };
+  if (res.status === 201 && isValidAttemptStartResponse(res.json)) {
+    return { ok: true, data: res.json.attempt };
+  }
+  return { ok: false };
+}
+
 export type ServerVerifyResult =
   | { status: 'verified'; data: ApiVerifyChallengeResponse['verification'] }
   | { status: 'rejected'; code: string; messageFa: string }
   | { status: 'offline'; messageFa: string };
 
 export async function verifyChallengeOnServer(
-  payload: ChallengeVerifyRequestPayload,
+  payload: ChallengeVerifyRequestPayload & { playerId?: string },
   options?: EdgeClientOptions,
 ): Promise<ServerVerifyResult> {
   const base = resolveApiBaseUrl(options?.baseUrl);
@@ -355,6 +469,52 @@ export async function fetchFriendLeaderboard(
   return interpretLeaderboardListResponse(res);
 }
 
+export type GlobalLeaderboardFetchResult =
+  | { status: 'ok'; data: ApiGlobalLeaderboardResponse['leaderboard'] }
+  | { status: 'storage_not_configured'; messageFa: string }
+  | { status: 'offline'; messageFa: string }
+  | { status: 'error'; code: string; messageFa: string };
+
+export async function fetchGlobalLeaderboard(
+  params?: { limit?: number; offset?: number; playerId?: string },
+  options?: EdgeClientOptions,
+): Promise<GlobalLeaderboardFetchResult> {
+  const base = resolveApiBaseUrl(options?.baseUrl);
+  const query = new URLSearchParams();
+  if (typeof params?.limit === 'number') query.set('limit', String(params.limit));
+  if (typeof params?.offset === 'number') query.set('offset', String(params.offset));
+  if (params?.playerId) query.set('playerId', params.playerId);
+
+  const res = await fetchJsonWithTimeout(
+    `${base}/api/v1/leaderboards/global?${query.toString()}`,
+    { method: 'GET', headers: { Accept: 'application/json' } },
+    options,
+  );
+
+  if (!res.networkOk) {
+    return {
+      status: 'offline',
+      messageFa: 'ارتباط با سرور لبه برقرار نشد. رکوردهای محلی شما همچنان در دسترس هستند.',
+    };
+  }
+  if (res.status === 200 && isValidGlobalLeaderboardResponse(res.json)) {
+    return { status: 'ok', data: res.json.leaderboard };
+  }
+  const apiErr = extractApiError(res.json);
+  if (apiErr?.code === 'STORAGE_NOT_CONFIGURED') {
+    return {
+      status: 'storage_not_configured',
+      messageFa:
+        'حافظه پایدار جدول امتیازات جهانی هنوز روی سرور پیکربندی نشده است.',
+    };
+  }
+  return {
+    status: 'error',
+    code: apiErr?.code ?? 'LEADERBOARD_UNAVAILABLE',
+    messageFa: 'جدول امتیازات جهانی در حال حاضر در دسترس نیست.',
+  };
+}
+
 function interpretLeaderboardListResponse(
   res:
     | { networkOk: true; status: number; json: unknown }
@@ -401,22 +561,30 @@ export async function submitVerifiedScoreToLeaderboard(
     challengeType: VerifiableChallengeType;
     challengeId: string;
     dateKey?: string;
+    levelId?: number;
     algoVersion: number;
     actions: TileRotationAction[];
     playerId: string;
     displayLabel?: string;
+    attemptToken?: string;
+    idempotencyKey?: string;
   },
   options?: EdgeClientOptions,
 ): Promise<LeaderboardSubmitResult> {
   const base = resolveApiBaseUrl(options?.baseUrl);
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    Accept: 'application/json',
+  };
+  if (payload.idempotencyKey) {
+    headers['Idempotency-Key'] = payload.idempotencyKey;
+  }
+
   const res = await fetchJsonWithTimeout(
     `${base}/api/v1/leaderboards/submit`,
     {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Accept: 'application/json',
-      },
+      headers,
       body: JSON.stringify(payload),
     },
     options,
@@ -455,4 +623,99 @@ export async function submitVerifiedScoreToLeaderboard(
     code: apiErr?.code ?? 'SUBMIT_FAILED',
     messageFa: 'ثبت امتیاز در جدول جهانی انجام نشد.',
   };
+}
+
+export async function createOnlineFriendChallenge(
+  payload: {
+    challengeId?: string;
+    difficulty?: Difficulty | 'any';
+    playerId?: string;
+    expiresInHours?: number;
+  },
+  options?: EdgeClientOptions,
+): Promise<
+  | { status: 'ok'; data: ApiFriendChallengeCreateResponse['friendChallenge'] }
+  | { status: 'unavailable' }
+> {
+  const base = resolveApiBaseUrl(options?.baseUrl);
+  const res = await fetchJsonWithTimeout(
+    `${base}/api/v1/friend-challenges`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify(payload),
+    },
+    options,
+  );
+  if (res.networkOk && (res.status === 200 || res.status === 201) && isValidFriendChallengeResponse(res.json)) {
+    return { status: 'ok', data: res.json.friendChallenge };
+  }
+  return { status: 'unavailable' };
+}
+
+export async function fetchOnlineFriendChallenge(
+  challengeId: string,
+  options?: EdgeClientOptions,
+): Promise<
+  | { status: 'ok'; data: ApiFriendChallengeGetResponse['friendChallenge'] }
+  | { status: 'expired'; messageFa: string }
+  | { status: 'unavailable' }
+> {
+  const base = resolveApiBaseUrl(options?.baseUrl);
+  const res = await fetchJsonWithTimeout(
+    `${base}/api/v1/friend-challenges/${encodeURIComponent(challengeId)}`,
+    { method: 'GET', headers: { Accept: 'application/json' } },
+    options,
+  );
+  if (!res.networkOk) return { status: 'unavailable' };
+  if (res.status === 200 && isValidFriendChallengeResponse(res.json)) {
+    return { status: 'ok', data: res.json.friendChallenge };
+  }
+  if (res.status === 410) {
+    return { status: 'expired', messageFa: 'مهلت زمانی این رقابت دوستانه به پایان رسیده است.' };
+  }
+  return { status: 'unavailable' };
+}
+
+export async function fetchPlayerProfile(
+  playerId: string,
+  options?: EdgeClientOptions,
+): Promise<
+  | { status: 'ok'; data: ApiPlayerProfileResponse['profile'] }
+  | { status: 'unavailable' }
+> {
+  const base = resolveApiBaseUrl(options?.baseUrl);
+  const res = await fetchJsonWithTimeout(
+    `${base}/api/v1/players/me?playerId=${encodeURIComponent(playerId)}`,
+    { method: 'GET', headers: { Accept: 'application/json' } },
+    options,
+  );
+  if (res.networkOk && res.status === 200 && isValidPlayerProfileResponse(res.json)) {
+    return { status: 'ok', data: res.json.profile };
+  }
+  return { status: 'unavailable' };
+}
+
+export async function updatePlayerProfile(
+  playerId: string,
+  displayLabel: string,
+  options?: EdgeClientOptions,
+): Promise<
+  | { status: 'ok'; data: ApiPlayerProfileResponse['profile'] }
+  | { status: 'unavailable' }
+> {
+  const base = resolveApiBaseUrl(options?.baseUrl);
+  const res = await fetchJsonWithTimeout(
+    `${base}/api/v1/players/profile`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify({ playerId, displayLabel }),
+    },
+    options,
+  );
+  if (res.networkOk && res.status === 200 && isValidPlayerProfileResponse(res.json)) {
+    return { status: 'ok', data: res.json.profile };
+  }
+  return { status: 'unavailable' };
 }

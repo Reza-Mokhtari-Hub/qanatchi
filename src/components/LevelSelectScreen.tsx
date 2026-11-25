@@ -75,11 +75,11 @@ export function LevelSelectScreen({
       </header>
 
       <main className="flex-1 w-full max-w-5xl mx-auto px-4 sm:px-6 py-5 sm:py-7 flex flex-col gap-5">
-        {/* Interactive 10-Route Selector Tabs (2x5 on mobile, 5x2 on sm+/desktop — zero orphan slots) */}
+        {/* Interactive 12-Route Selector Tabs (2x6 mobile, 4x3 tablet, 6x2 desktop — zero orphan slots) */}
         <div
           role="tablist"
-          aria-label="فهرست ده مسیر کمپین"
-          className="grid grid-cols-2 sm:grid-cols-5 gap-1.5 p-1.5 rounded-2xl bg-[#1C1611] border border-[#3B2E22]"
+          aria-label="فهرست دوازده مسیر کمپین"
+          className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-1.5 p-1.5 rounded-2xl bg-[#1C1611] border border-[#3B2E22]"
         >
           {REGIONS.map((region) => {
             const unlocked = isRegionUnlocked(progress, region.id);
@@ -92,7 +92,11 @@ export function LevelSelectScreen({
                   ? 'اصفهان'
                   : region.id === 'northwest'
                     ? 'شمال‌غرب'
-                    : region.nameFa;
+                    : region.id === 'shahsavan'
+                      ? 'شاهسون'
+                      : region.id === 'turkmen_sahra'
+                        ? 'ترکمن‌صحرا'
+                        : region.nameFa;
 
             return (
               <button
@@ -192,14 +196,15 @@ export function LevelSelectScreen({
           </div>
         </section>
 
-        {/* 4 Illustrated Destination Cards (Each with its 2 Playable Levels) */}
+        {/* Illustrated Destination Cards (4 or 5 destinations dynamically, each with 2 playable levels) */}
         <section
           aria-label={`مقاصد مسیر ${activeRegion.nameFa}`}
           className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-5"
         >
-          {regionDestinations.map((dest) => {
+          {regionDestinations.map((dest, destIdx) => {
             const destStats = getDestinationProgress(progress, dest.id);
             const destLevels = getLevelsByDestination(dest.id);
+            const isWideFifth = regionDestinations.length === 5 && destIdx === 4;
 
             return (
               <article
@@ -208,6 +213,8 @@ export function LevelSelectScreen({
                 data-unlocked={destStats.unlocked ? 'true' : 'false'}
                 data-completed={destStats.isCompleted ? 'true' : 'false'}
                 className={`rounded-2xl overflow-hidden border flex flex-col transition-all duration-150 ${
+                  isWideFifth ? 'md:col-span-2' : ''
+                } ${
                   !destStats.unlocked
                     ? 'bg-[#191511] border-[#352A20]'
                     : destStats.isCompleted
@@ -270,7 +277,11 @@ export function LevelSelectScreen({
                   </div>
 
                   {/* Two Playable Level Cards belonging to this Destination */}
-                  <div className="flex flex-col gap-2.5 pt-2 border-t border-[#32271D]">
+                  <div
+                    className={`gap-2.5 pt-2 border-t border-[#32271D] ${
+                      isWideFifth ? 'grid grid-cols-1 md:grid-cols-2' : 'flex flex-col'
+                    }`}
+                  >
                     {destLevels.map((level) => {
                       const record = progress.levels[level.id];
                       const isCompleted = Boolean(record?.completed);

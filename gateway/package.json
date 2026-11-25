@@ -1,0 +1,16 @@
+{
+  "name": "qanatchi-pg-gateway",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Standalone HTTPS SQL gateway for QANATCHI ArvanCloud Edge Leaderboard + Managed PostgreSQL",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node server.mjs"
+  },
+  "dependencies": {
+    "pg": "^8.13.1"
+  }
+}

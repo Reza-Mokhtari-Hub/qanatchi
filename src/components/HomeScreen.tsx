@@ -257,7 +257,7 @@ export function HomeScreen({
       {/* Quiet Single-Line Control Hint in Safe Bottom Margin */}
       <div className="relative z-10 pb-4 px-4 text-center">
         <p className="text-xs text-[#D5C2A2]/80">
-          ۱۰ مسیر و ۴۰ مقصد در سراسر ایران · لوله‌ها را بچرخانید و آب را بدون نشت به مقصد برسانید
+          ۱۲ مسیر و ۵۰ مقصد در سراسر ایران · لوله‌ها را بچرخانید و آب را بدون نشت به مقصد برسانید
         </p>
       </div>
     </main>

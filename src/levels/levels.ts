@@ -8,6 +8,8 @@ import { KHORASAN_LEVELS } from './khorasanLevels';
 import { NORTHWEST_LEVELS } from './northwestLevels';
 import { RAZAVI_KHORASAN_LEVELS } from './razaviKhorasanLevels';
 import { SEMNAN_LEVELS } from './semnanLevels';
+import { SHAHSAVAN_LEVELS } from './shahsavanLevels';
+import { TURKMEN_SAHRA_LEVELS } from './turkmenSahraLevels';
 import { YAZD_LEVELS } from './yazdLevels';
 import { ZANJAN_LEVELS } from './zanjanLevels';
 
@@ -22,6 +24,8 @@ export const LEVELS: readonly LevelDefinition[] = [
   ...SEMNAN_LEVELS,
   ...NORTHWEST_LEVELS,
   ...RAZAVI_KHORASAN_LEVELS,
+  ...SHAHSAVAN_LEVELS,
+  ...TURKMEN_SAHRA_LEVELS,
 ];
 
 export function getLevelById(levelId: number): LevelDefinition {

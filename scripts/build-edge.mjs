@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { build } from 'esbuild';
+import { build, transform } from 'esbuild';
 
 const rootDir = process.cwd();
 const entryFile = path.resolve(rootDir, 'edge/worker.ts');
@@ -21,24 +21,33 @@ const FORBIDDEN_PATTERNS = [
 async function run() {
   fs.mkdirSync(outDir, { recursive: true });
 
-  await build({
+  const bundled = await build({
     entryPoints: [entryFile],
-    outfile: outFile,
+    write: false,
     bundle: true,
     format: 'iife',
     platform: 'neutral',
-    target: 'es2022',
+    target: 'es2020',
     mainFields: ['module', 'main'],
     conditions: ['worker', 'browser', 'import'],
     minify: true,
+    charset: 'ascii',
     sourcemap: false,
-    charset: 'utf8',
-    banner: {
-      js: '/* QANATCHI ArvanCloud Edge API Bundle (API v1) - Pure Web Fetch Standard */',
-    },
   });
 
-  const bundledCode = fs.readFileSync(outFile, 'utf8');
+  // Format across clean ASCII-only lines so browser editors/uploaders never choke on a 90KB single line
+  const formatted = await transform(bundled.outputFiles[0].text, {
+    loader: 'js',
+    minifyIdentifiers: false,
+    minifySyntax: false,
+    minifyWhitespace: false,
+    charset: 'ascii',
+  });
+
+  const banner = '/* QANATCHI ArvanCloud Edge API Bundle (API v1) - Pure Web Fetch Standard */\n';
+  const bundledCode = `${banner}${formatted.code}`;
+  fs.writeFileSync(outFile, bundledCode, 'utf8');
+
   const violations = [];
   for (const check of FORBIDDEN_PATTERNS) {
     if (check.regex.test(bundledCode)) {

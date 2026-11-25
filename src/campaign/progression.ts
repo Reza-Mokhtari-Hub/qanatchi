@@ -11,7 +11,7 @@ import type {
   StoryMoment,
 } from '../engine/types';
 
-export const TOTAL_CAMPAIGN_LEVELS = 80;
+export const TOTAL_CAMPAIGN_LEVELS = 100;
 
 /**
  * Derive the highest unlocked level ID deterministically from completed records
@@ -49,6 +49,8 @@ export function computeHighestUnlockedLevelId(
  * - Semnan: Unlocked once Level 56 is completed (Levels 57–64)
  * - Northwestern Iran: Unlocked once Level 64 is completed (Levels 65–72)
  * - Razavi Khorasan: Unlocked once Level 72 is completed (Levels 73–80)
+ * - Shahsavan Heritage: Unlocked once Level 80 is completed (Levels 81–90)
+ * - Turkmen Sahra Heritage: Unlocked once Level 90 is completed (Levels 91–100)
  */
 export function computeUnlockedRegions(
   levels: Record<number, LevelProgressRecord>,
@@ -271,12 +273,28 @@ export function detectCompletionMilestone(
   const prevSummary = getCampaignSummary(prevProgress);
   const nextSummary = getCampaignSummary(nextProgress);
 
-  // 1. Entire 80-level campaign completed for the first time
+  // 1. Entire 100-level campaign completed for the first time
   if (!prevSummary.isCampaignCompleted && nextSummary.isCampaignCompleted) {
     return STORY_MOMENTS.campaign_complete;
   }
 
-  // 2. Completing Level 72 unlocks Razavi Khorasan
+  // 2. Completing Level 90 unlocks Turkmen Sahra Heritage (Route 12)
+  if (
+    !isRegionUnlocked(prevProgress, 'turkmen_sahra') &&
+    isRegionUnlocked(nextProgress, 'turkmen_sahra')
+  ) {
+    return STORY_MOMENTS.unlock_turkmen_sahra;
+  }
+
+  // 3. Completing Level 80 unlocks Shahsavan Heritage (Route 11)
+  if (
+    !isRegionUnlocked(prevProgress, 'shahsavan') &&
+    isRegionUnlocked(nextProgress, 'shahsavan')
+  ) {
+    return STORY_MOMENTS.unlock_shahsavan;
+  }
+
+  // 4. Completing Level 72 unlocks Razavi Khorasan
   if (
     !isRegionUnlocked(prevProgress, 'razavi_khorasan') &&
     isRegionUnlocked(nextProgress, 'razavi_khorasan')

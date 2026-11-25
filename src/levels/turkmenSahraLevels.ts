@@ -1,0 +1,320 @@
+import type { LevelDefinition } from '../engine/types';
+import { blk, cor, crs, dst, emp, src, str, tee } from './tileBuilders';
+
+/**
+ * Route 12: Turkmen Sahra Heritage — From Turkmen Plains to Caspian Coast (Levels 91–100)
+ * Destinations (5 destinations · 10 levels):
+ * - Gonbad-e Kavus (گنبد کاووس): Levels 91–92
+ * - Aq Qala (آق‌قلا): Levels 93–94
+ * - Bandar Torkaman (بندر ترکمن): Levels 95–96
+ * - Gomishan / Gomish Tappeh (گمیشان / گمیش‌تپه): Levels 97–98
+ * - Maraveh Tappeh (مراوه‌تپه): Levels 99–100
+ */
+export const TURKMEN_SAHRA_LEVELS: readonly LevelDefinition[] = [
+  // LEVEL 91: 6x5 Hard — Gonbad-e Kavus Wide Steppe
+  {
+    id: 91,
+    regionId: 'turkmen_sahra',
+    destinationId: 'gonbad_kavus',
+    titleFa: 'دشت پهناور گنبد کاووس',
+    subtitleFa: 'آغاز راه ترکمن‌صحرا با تقارن هندسی و سه مقصد در پهنه دشت',
+    difficulty: 'hard',
+    rows: 6,
+    cols: 5,
+    source: { row: 5, col: 2 },
+    destination: { row: 0, col: 0 },
+    destinations: [
+      { row: 0, col: 0 },
+      { row: 0, col: 4 },
+      { row: 3, col: 4 },
+    ],
+    expectedMinMoves: 23,
+    parTimeSec: 165,
+    grid: [
+      [dst(270), blk(), emp(), blk(), dst(270)],
+      [tee(270, 90), str(0, 90), cor(0, 180), cor(270, 90), tee(90, 270)],
+      [str(90, 0), blk(), cor(180, 0), crs(0), cor(90, 270)],
+      [cor(180, 0), str(0, 90), tee(0, 180), crs(0), dst(0)],
+      [blk(), emp(), tee(270, 90), cor(90, 270), blk()],
+      [emp(), blk(), src(270), emp(), blk()],
+    ],
+  },
+
+  // LEVEL 92: 6x6 Hard — Gonbad Gorgan-Rud Crossing
+  {
+    id: 92,
+    regionId: 'turkmen_sahra',
+    destinationId: 'gonbad_kavus',
+    titleFa: 'گذرگاه گرگان‌رود در گنبد',
+    subtitleFa: 'انشعاب‌های رودخانه‌ای در دشت گنبد کاووس برای سیراب کردن چهار ایستگاه',
+    difficulty: 'hard',
+    rows: 6,
+    cols: 6,
+    source: { row: 0, col: 4 },
+    destination: { row: 0, col: 0 },
+    destinations: [
+      { row: 0, col: 0 },
+      { row: 4, col: 5 },
+      { row: 5, col: 0 },
+      { row: 5, col: 3 },
+    ],
+    expectedMinMoves: 31,
+    parTimeSec: 185,
+    grid: [
+      [dst(270), blk(), emp(), blk(), src(90), blk()],
+      [tee(270, 90), str(0, 90), cor(0, 180), cor(270, 90), tee(180, 0), cor(0, 180)],
+      [str(90, 0), blk(), str(90, 0), str(90, 0), blk(), str(90, 0)],
+      [cor(180, 0), str(0, 90), crs(0), tee(90, 270), cor(270, 90), tee(90, 270)],
+      [cor(270, 90), str(0, 90), tee(180, 0), crs(0), cor(90, 270), dst(90)],
+      [dst(90), blk(), emp(), dst(90), blk(), emp()],
+    ],
+  },
+
+  // LEVEL 93: 6x6 Hard — Aq Qala River Bridge & Channels
+  {
+    id: 93,
+    regionId: 'turkmen_sahra',
+    destinationId: 'aq_qala',
+    titleFa: 'پل و آبراهه آق‌قلا',
+    subtitleFa: 'عبور جریان اصلی از محور شرقی‌غربی و توزیع آب میان دو کرانه گرگان‌رود',
+    difficulty: 'hard',
+    rows: 6,
+    cols: 6,
+    source: { row: 3, col: 5 },
+    destination: { row: 0, col: 1 },
+    destinations: [
+      { row: 0, col: 1 },
+      { row: 0, col: 5 },
+      { row: 5, col: 1 },
+      { row: 5, col: 5 },
+    ],
+    expectedMinMoves: 32,
+    parTimeSec: 190,
+    grid: [
+      [blk(), dst(270), emp(), blk(), emp(), dst(270)],
+      [cor(270, 90), crs(0), str(0, 90), cor(0, 180), cor(270, 90), tee(90, 270)],
+      [str(90, 0), str(90, 0), blk(), cor(180, 0), crs(0), cor(90, 270)],
+      [cor(180, 0), crs(0), str(0, 90), str(0, 90), crs(0), src(180)],
+      [emp(), tee(270, 90), cor(0, 180), blk(), tee(270, 90), cor(0, 180)],
+      [blk(), dst(90), cor(180, 0), str(0, 90), cor(90, 270), dst(90)],
+    ],
+  },
+
+  // LEVEL 94: 6x7 Expert — Aq Qala Steppe Regulators
+  {
+    id: 94,
+    regionId: 'turkmen_sahra',
+    destinationId: 'aq_qala',
+    titleFa: 'بندهای دشت آق‌قلا',
+    subtitleFa: 'تخته گسترده ۶×۷ با دو حلقه بسته و چهار مقصد در حاشیه گرگان‌رود',
+    difficulty: 'expert',
+    rows: 6,
+    cols: 7,
+    source: { row: 0, col: 3 },
+    destination: { row: 0, col: 0 },
+    destinations: [
+      { row: 0, col: 0 },
+      { row: 0, col: 6 },
+      { row: 5, col: 2 },
+      { row: 5, col: 6 },
+    ],
+    expectedMinMoves: 29,
+    parTimeSec: 210,
+    grid: [
+      [dst(270), blk(), emp(), src(90), emp(), blk(), dst(270)],
+      [tee(270, 90), str(0, 90), tee(0, 180), crs(0), tee(0, 180), str(0, 90), tee(90, 270)],
+      [str(90, 0), blk(), str(90, 0), str(90, 0), str(90, 0), blk(), str(90, 0)],
+      [cor(180, 0), str(0, 90), crs(0), tee(180, 0), crs(0), str(0, 90), tee(90, 270)],
+      [emp(), blk(), str(90, 0), blk(), cor(180, 0), str(0, 90), tee(90, 270)],
+      [blk(), emp(), dst(90), blk(), emp(), blk(), dst(90)],
+    ],
+  },
+
+  // LEVEL 95: 6x6 Expert — Bandar Torkaman Bay Shore
+  {
+    id: 95,
+    regionId: 'turkmen_sahra',
+    destinationId: 'bandar_torkaman',
+    titleFa: 'کرانه خلیج بندر ترکمن',
+    subtitleFa: 'گسترش آبراهه از شرق دشت به سوی چهار بندرگاه و آبگیر ساحلی غرب',
+    difficulty: 'expert',
+    rows: 6,
+    cols: 6,
+    source: { row: 2, col: 5 },
+    destination: { row: 0, col: 0 },
+    destinations: [
+      { row: 0, col: 0 },
+      { row: 2, col: 0 },
+      { row: 5, col: 0 },
+      { row: 5, col: 4 },
+    ],
+    expectedMinMoves: 27,
+    parTimeSec: 195,
+    grid: [
+      [dst(180), str(0, 90), tee(0, 180), str(0, 90), cor(0, 180), blk()],
+      [blk(), emp(), str(90, 0), blk(), str(90, 0), emp()],
+      [dst(180), str(0, 90), crs(0), str(0, 90), crs(0), src(180)],
+      [blk(), cor(270, 90), tee(90, 270), blk(), str(90, 0), blk()],
+      [cor(270, 90), tee(180, 0), cor(90, 270), cor(270, 90), cor(90, 270), emp()],
+      [dst(90), blk(), emp(), cor(180, 0), dst(0), blk()],
+    ],
+  },
+
+  // LEVEL 96: 7x6 Expert — Bandar Torkaman Coastal Plain
+  {
+    id: 96,
+    regionId: 'turkmen_sahra',
+    destinationId: 'bandar_torkaman',
+    titleFa: 'پهنه ساحلی بندر ترکمن',
+    subtitleFa: 'شبکه ۷×۶ ساحلی با مسیرهای انحرافی و چهار مقصد در امتداد کرانه',
+    difficulty: 'expert',
+    rows: 7,
+    cols: 6,
+    source: { row: 3, col: 5 },
+    destination: { row: 0, col: 1 },
+    destinations: [
+      { row: 0, col: 1 },
+      { row: 0, col: 4 },
+      { row: 6, col: 0 },
+      { row: 6, col: 4 },
+    ],
+    expectedMinMoves: 34,
+    parTimeSec: 220,
+    grid: [
+      [blk(), dst(270), blk(), emp(), dst(270), blk()],
+      [cor(270, 90), crs(0), str(0, 90), cor(0, 180), str(90, 0), blk()],
+      [str(90, 0), str(90, 0), blk(), cor(180, 0), cor(90, 270), emp()],
+      [cor(180, 0), crs(0), str(0, 90), cor(0, 180), blk(), src(90)],
+      [cor(270, 90), tee(90, 270), blk(), cor(180, 0), tee(0, 180), cor(90, 270)],
+      [str(90, 0), cor(180, 0), str(0, 90), str(0, 90), tee(90, 270), blk()],
+      [dst(90), blk(), emp(), blk(), dst(90), emp()],
+    ],
+  },
+
+  // LEVEL 97: 7x7 Expert — Gomishan Coastal Wetland
+  {
+    id: 97,
+    regionId: 'turkmen_sahra',
+    destinationId: 'gomishan',
+    titleFa: 'تالاب و دشت گمیشان',
+    subtitleFa: 'گذر از میان جزیره‌های تالابی ۷×۷ برای اتصال چهار سکونتگاه پیرامونی',
+    difficulty: 'expert',
+    rows: 7,
+    cols: 7,
+    source: { row: 3, col: 0 },
+    destination: { row: 0, col: 2 },
+    destinations: [
+      { row: 0, col: 2 },
+      { row: 0, col: 6 },
+      { row: 6, col: 2 },
+      { row: 6, col: 6 },
+    ],
+    expectedMinMoves: 39,
+    parTimeSec: 240,
+    grid: [
+      [blk(), emp(), dst(270), blk(), emp(), blk(), dst(270)],
+      [emp(), emp(), tee(270, 90), str(0, 90), cor(0, 180), cor(270, 90), tee(90, 270)],
+      [blk(), blk(), str(90, 0), blk(), cor(180, 0), crs(0), cor(90, 270)],
+      [src(0), tee(0, 180), crs(0), str(0, 90), str(0, 90), tee(90, 270), blk()],
+      [cor(270, 90), cor(90, 270), str(90, 0), blk(), cor(270, 90), crs(0), cor(0, 180)],
+      [cor(180, 0), str(0, 90), crs(0), str(0, 90), cor(90, 270), cor(180, 0), tee(90, 270)],
+      [blk(), emp(), dst(90), blk(), emp(), blk(), dst(90)],
+    ],
+  },
+
+  // LEVEL 98: 7x7 Expert — Gomish Tappeh Five-Channel Delta
+  {
+    id: 98,
+    regionId: 'turkmen_sahra',
+    destinationId: 'gomishan',
+    titleFa: 'آبراه‌های گمیش‌تپه',
+    subtitleFa: 'شبکه ۷×۷ با پنج مقصد هم‌زمان در حاشیه دشت و کرانه گمیش‌تپه',
+    difficulty: 'expert',
+    rows: 7,
+    cols: 7,
+    source: { row: 0, col: 3 },
+    destination: { row: 0, col: 0 },
+    destinations: [
+      { row: 0, col: 0 },
+      { row: 0, col: 6 },
+      { row: 3, col: 0 },
+      { row: 6, col: 1 },
+      { row: 6, col: 5 },
+    ],
+    expectedMinMoves: 38,
+    parTimeSec: 245,
+    grid: [
+      [dst(270), blk(), emp(), src(90), emp(), blk(), dst(270)],
+      [tee(270, 90), str(0, 90), tee(0, 180), crs(0), tee(0, 180), str(0, 90), tee(90, 270)],
+      [str(90, 0), blk(), str(90, 0), str(90, 0), str(90, 0), blk(), str(90, 0)],
+      [dst(90), cor(270, 90), tee(180, 0), crs(0), tee(180, 0), str(0, 90), cor(90, 270)],
+      [emp(), str(90, 0), blk(), str(90, 0), blk(), cor(270, 90), cor(0, 180)],
+      [blk(), tee(270, 90), str(0, 90), tee(180, 0), str(0, 90), crs(0), cor(90, 270)],
+      [emp(), dst(90), blk(), emp(), blk(), dst(90), emp()],
+    ],
+  },
+
+  // LEVEL 99: 7x7 Expert — Maraveh Tappeh Rolling Hills & Atrak Basin
+  {
+    id: 99,
+    regionId: 'turkmen_sahra',
+    destinationId: 'maraveh_tappeh',
+    titleFa: 'تپه‌ماهورهای مراوه‌تپه',
+    subtitleFa: 'هدایت آب از حوضه غربی اترک در شبکه پرشاخه ۷×۷ به پنج مقصد کوهپایه‌ای',
+    difficulty: 'expert',
+    rows: 7,
+    cols: 7,
+    source: { row: 3, col: 0 },
+    destination: { row: 0, col: 1 },
+    destinations: [
+      { row: 0, col: 1 },
+      { row: 0, col: 5 },
+      { row: 3, col: 6 },
+      { row: 6, col: 1 },
+      { row: 6, col: 5 },
+    ],
+    expectedMinMoves: 29,
+    parTimeSec: 255,
+    grid: [
+      [blk(), dst(270), blk(), emp(), blk(), dst(270), blk()],
+      [emp(), tee(270, 90), str(0, 90), cor(0, 180), cor(270, 90), cor(90, 270), emp()],
+      [blk(), str(90, 0), blk(), str(90, 0), str(90, 0), blk(), blk()],
+      [src(0), crs(0), str(0, 90), crs(0), crs(0), str(0, 90), dst(0)],
+      [cor(270, 90), tee(90, 270), blk(), str(90, 0), str(90, 0), blk(), emp()],
+      [cor(180, 0), crs(0), str(0, 90), cor(90, 270), cor(180, 0), cor(0, 180), emp()],
+      [blk(), dst(90), blk(), emp(), blk(), dst(90), blk()],
+    ],
+  },
+
+  // LEVEL 100: 7x7 Expert — The Hundredfold Pulse of Persian Water (Grand 100-Level Finale!)
+  {
+    id: 100,
+    regionId: 'turkmen_sahra',
+    destinationId: 'maraveh_tappeh',
+    titleFa: 'نبض صدگانه آب ایران',
+    subtitleFa: 'آزمون شکوهمند مرحله صدم؛ هندسه متقارن ترکمن‌صحرا با پنج مقصد از یک سرچشمه مرکزی',
+    difficulty: 'expert',
+    rows: 7,
+    cols: 7,
+    source: { row: 3, col: 2 },
+    destination: { row: 0, col: 0 },
+    destinations: [
+      { row: 0, col: 0 },
+      { row: 0, col: 6 },
+      { row: 3, col: 6 },
+      { row: 6, col: 0 },
+      { row: 6, col: 6 },
+    ],
+    expectedMinMoves: 45,
+    parTimeSec: 265,
+    grid: [
+      [dst(270), blk(), emp(), blk(), emp(), blk(), dst(270)],
+      [tee(270, 90), str(0, 90), cor(0, 180), cor(270, 90), str(0, 90), tee(0, 180), tee(90, 270)],
+      [str(90, 0), blk(), cor(180, 0), tee(90, 270), blk(), tee(270, 90), cor(90, 270)],
+      [cor(180, 0), cor(0, 180), src(0), crs(0), str(0, 90), crs(0), dst(0)],
+      [blk(), str(90, 0), cor(270, 90), tee(90, 270), blk(), str(90, 0), emp()],
+      [cor(270, 90), tee(180, 0), cor(90, 270), cor(180, 0), str(0, 90), tee(180, 0), cor(0, 180)],
+      [dst(90), blk(), emp(), blk(), emp(), blk(), dst(90)],
+    ],
+  },
+];

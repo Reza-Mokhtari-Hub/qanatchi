@@ -135,8 +135,8 @@ test('BFS simulator prevents infinite loops on closed pipe cycles', () => {
   assert.equal(sim.connectedTiles.length, 6);
 });
 
-test('all 80 handcrafted campaign levels pass programmatic verification with unique titles and non-duplicate grids', () => {
-  assert.equal(LEVELS.length, 80);
+test('all 100 handcrafted campaign levels pass programmatic verification with unique titles and non-duplicate grids', () => {
+  assert.equal(LEVELS.length, 100);
   const seenNames = new Set<string>();
   const seenBoardFingerprints = new Set<string>();
 
@@ -175,7 +175,7 @@ test('all 80 handcrafted campaign levels pass programmatic verification with uni
   }
 });
 
-test('hint engine guides player to exact verified leak-free solution across all 80 campaign levels', () => {
+test('hint engine guides player to exact verified leak-free solution across all 100 campaign levels', () => {
   for (const level of LEVELS) {
     const board = buildGridFromLevel(level, 'initial');
     let movesApplied = 0;

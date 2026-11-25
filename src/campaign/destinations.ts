@@ -1,10 +1,10 @@
 import type { DestinationDefinition, DestinationId, RegionId } from '../engine/types';
 
 /**
- * Complete 20-destination campaign atlas across 5 Iranian regional routes.
+ * Complete 50-destination campaign atlas across 12 Iranian regional & cultural routes.
  * Historical qanat mentions are bounded to verified heritage contexts (UNESCO Persian Qanat
  * and Encyclopaedia Iranica); where specific local historical documentation is absent,
- * descriptions are framed honestly as landscape-inspired puzzle storytelling.
+ * descriptions are framed honestly as landscape- and culture-inspired puzzle storytelling.
  */
 export const DESTINATIONS: readonly DestinationDefinition[] = [
   // =========================================================================
@@ -561,12 +561,152 @@ export const DESTINATIONS: readonly DestinationDefinition[] = [
     order: 40,
     nameFa: 'تربت حیدریه',
     nameEn: 'Torbat-e Heydarieh',
-    taglineFa: 'دشت‌های زعفران و ایستگاه پایانی سفر ایران',
+    taglineFa: 'دشت‌های زعفران و ایستگاه پایانی مسیر خراسان رضوی',
     descriptionFa:
-      'واپسین مقصد سفر ۸۰ مرحله‌ای قنات‌چی در بلندی‌های خراسان رضوی؛ جایی که آزمون نهایی استاد بزرگ آب ایران رقم می‌خورد.',
+      'ایستگاه پایانی مسیر خراسان رضوی در بلندی‌های شرق ایران؛ گذرگاهی پرچالش که دروازه دو مسیر فرهنگی پایانی را می‌گشاید.',
     levelIds: [79, 80],
     accentHex: '#B680E0',
     secondaryHex: '#F0BD56',
+  },
+
+  // =========================================================================
+  // ROUTE 11 — SHAHSAVAN HERITAGE (Levels 81–90)
+  // Cultural & geographical interpretation from Moghan plain to Sabalan slopes
+  // =========================================================================
+  {
+    id: 'parsabad',
+    regionId: 'shahsavan',
+    order: 41,
+    nameFa: 'پارس‌آباد',
+    nameEn: 'Parsabad',
+    taglineFa: 'دشت حاصلخیز مغان و حوضه رود ارس',
+    descriptionFa:
+      'آغاز راه کوچ شاهسون در شمال دشت مغان؛ جایی که سرزمین‌های قشلاقی و کشتزارهای گسترده کنار رود ارس الهام‌بخش شبکه‌های آب‌رسانی این ایستگاه هستند.',
+    levelIds: [81, 82],
+    accentHex: '#43C2A8',
+    secondaryHex: '#E09A48',
+  },
+  {
+    id: 'bileh_savar',
+    regionId: 'shahsavan',
+    order: 42,
+    nameFa: 'بیله‌سوار',
+    nameEn: 'Bileh Savar',
+    taglineFa: 'چمنزارهای مغان و گذرگاه‌های فصلی دشت',
+    descriptionFa:
+      'دشت‌های باز و تپه‌ماهورهای شرق مغان در مسیر حرکت فصلی از قشلاق به سوی ارتفاعات؛ معماهای این مقصد با الهام از جغرافیای دشت و آبشخورهای فصلی طراحی شده‌اند.',
+    levelIds: [83, 84],
+    accentHex: '#3EB89A',
+    secondaryHex: '#D97452',
+  },
+  {
+    id: 'germi',
+    regionId: 'shahsavan',
+    order: 43,
+    nameFa: 'گرمی',
+    nameEn: 'Germi',
+    taglineFa: 'دره‌های سرسبز و کوهپایه‌های میانی مغان',
+    descriptionFa:
+      'گذرگاه کوهپایه‌ای میان دشت مغان و بلندی‌های اردبیل با دره‌های پیوسته و چشم‌اندازهای روستایی و عشایری متنوع منطقه.',
+    levelIds: [85, 86],
+    accentHex: '#56B87A',
+    secondaryHex: '#4CCAD6',
+  },
+  {
+    id: 'meshgin_shahr',
+    regionId: 'shahsavan',
+    order: 44,
+    nameFa: 'مشگین‌شهر',
+    nameEn: 'Meshgin Shahr',
+    taglineFa: 'دامنه‌های شمالی سبلان، دره‌ها و چشمه‌های کوهستانی',
+    descriptionFa:
+      'بلندی‌های خوش‌آب‌وهوای دامنه سبلان با چشمه‌های طبیعی، دره‌های عمیق و هنر بافته‌های هندسی ورنی که الهام‌بخش طراحی این مراحل‌اند.',
+    levelIds: [87, 88],
+    accentHex: '#48A9D6',
+    secondaryHex: '#E27D58',
+  },
+  {
+    id: 'ardabil_sabalan',
+    regionId: 'shahsavan',
+    order: 45,
+    nameFa: 'اردبیل و دامنه سبلان',
+    nameEn: 'Ardabil & Sabalan Highlands',
+    taglineFa: 'ییلاق‌های بلند سبلان و چشم‌انداز دشت اردبیل',
+    descriptionFa:
+      'ایستگاه پایانی راه کوچ شاهسون در دامنه‌های خنک و مرتفع سبلان و پهنه‌ی اردبیل؛ جایی که آب‌های کوهستانی در شبکه‌ای گسترده میان ییلاق‌ها جریان می‌یابند.',
+    levelIds: [89, 90],
+    accentHex: '#3DC2C9',
+    secondaryHex: '#F0B65A',
+  },
+
+  // =========================================================================
+  // ROUTE 12 — TURKMEN SAHRA HERITAGE (Levels 91–100)
+  // Cultural & geographical interpretation from Turkmen plains to Caspian coast
+  // =========================================================================
+  {
+    id: 'gonbad_kavus',
+    regionId: 'turkmen_sahra',
+    order: 46,
+    nameFa: 'گنبد کاووس',
+    nameEn: 'Gonbad-e Kavus',
+    taglineFa: 'پهنه‌ی دشت ترکمن‌صحرا و حوضه گرگان‌رود',
+    descriptionFa:
+      'آغاز راه ترکمن‌صحرا در دل دشت‌های گسترده شمال‌شرق گلستان؛ معماهایی الهام‌گرفته از هندسه فرش‌های ترکمنی، چشم‌انداز دشت و مسیرهای گرگان‌رود.',
+    levelIds: [91, 92],
+    accentHex: '#E5A83B',
+    secondaryHex: '#C84B4B',
+  },
+  {
+    id: 'aq_qala',
+    regionId: 'turkmen_sahra',
+    order: 47,
+    nameFa: 'آق‌قلا',
+    nameEn: 'Aq Qala',
+    taglineFa: 'گذرگاه گرگان‌رود و دشت‌های پیرامون',
+    descriptionFa:
+      'شهر دشتی در کناره گرگان‌رود با پیشینه‌ای از زندگی در کنار آب و دشت‌های کشاورزی؛ طراحی مراحل این مقصد بر پایه انشعاب‌های منظم رودخانه‌ای است.',
+    levelIds: [93, 94],
+    accentHex: '#D88F3C',
+    secondaryHex: '#35C4D4',
+  },
+  {
+    id: 'bandar_torkaman',
+    regionId: 'turkmen_sahra',
+    order: 48,
+    nameFa: 'بندر ترکمن',
+    nameEn: 'Bandar Torkaman',
+    taglineFa: 'کرانه خلیج گرگان و افق دریای خزر',
+    descriptionFa:
+      'سکونتگاه ساحلی در پیوند دشت ترکمن‌صحرا با آب‌های خلیج گرگان و دریای خزر؛ الهام‌بخش شبکه‌های آب‌رسانی گسترده به سوی کرانه.',
+    levelIds: [95, 96],
+    accentHex: '#2FAAC9',
+    secondaryHex: '#E6B24C',
+  },
+  {
+    id: 'gomishan',
+    regionId: 'turkmen_sahra',
+    order: 49,
+    nameFa: 'گمیشان / گمیش‌تپه',
+    nameEn: 'Gomishan / Gomish Tappeh',
+    taglineFa: 'تالاب ساحلی، معماری بومی و دشت‌های شمال‌غرب گلستان',
+    descriptionFa:
+      'شهر تاریخی و ساحلی در حاشیه تالاب بین‌المللی گمیشان و دشت‌های نزدیک خزر؛ آبراه‌های این ایستگاه با الهام از گذرگاه‌های پیرامون تالاب شکل گرفته‌اند.',
+    levelIds: [97, 98],
+    accentHex: '#3FB89D',
+    secondaryHex: '#D97B48',
+  },
+  {
+    id: 'maraveh_tappeh',
+    regionId: 'turkmen_sahra',
+    order: 50,
+    nameFa: 'مراوه‌تپه',
+    nameEn: 'Maraveh Tappeh',
+    taglineFa: 'تپه‌ماهورهای شرق ترکمن‌صحرا و حوضه رود اترک',
+    descriptionFa:
+      'ایستگاه پنجاهم و پایانی سفر صدمرحله‌ای قنات‌چی در تپه‌های سرسبز و دشت‌های شرقی حوضه رود اترک؛ آزمون نهایی مهارت و برنامه‌ریزی در نبض آب ایران.',
+    levelIds: [99, 100],
+    accentHex: '#E8B64C',
+    secondaryHex: '#3AD4E2',
   },
 ];
 

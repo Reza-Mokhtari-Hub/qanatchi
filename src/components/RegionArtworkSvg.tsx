@@ -6,7 +6,7 @@ interface RegionArtworkSvgProps {
 }
 
 /**
- * Custom lightweight inline SVG architectural & landscape illustrations for all 5 Iranian routes.
+ * Custom lightweight inline SVG architectural & landscape illustrations for all 12 Iranian routes.
  * Zero external image dependencies; works 100% offline and crisp at all screen densities.
  */
 export function RegionArtworkSvg({ regionId, locked = false }: RegionArtworkSvgProps) {
@@ -460,7 +460,113 @@ export function RegionArtworkSvg({ regionId, locked = false }: RegionArtworkSvgP
     );
   }
 
-  // Route 10: Razavi Khorasan — Deep lapis sky, Binalud peaks, turquoise gem domes, saffron plateau & radiant finale pulse
+  if (regionId === 'razavi_khorasan') {
+    // Route 10: Razavi Khorasan — Deep lapis sky, Binalud peaks, turquoise gem domes, saffron plateau & radiant pulse
+    return (
+      <svg
+        viewBox="0 0 360 150"
+        className={`w-full h-32 sm:h-36 block object-cover ${filterClass}`}
+        preserveAspectRatio="xMidYMid slice"
+        aria-hidden="true"
+      >
+        <defs>
+          <linearGradient id="razaviSky" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#0D1630" />
+            <stop offset="56%" stopColor="#1D4363" />
+            <stop offset="100%" stopColor="#4F3D66" />
+          </linearGradient>
+          <linearGradient id="razaviPulse" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0%" stopColor="#199CB0" />
+            <stop offset="50%" stopColor="#7DF7FF" />
+            <stop offset="100%" stopColor="#199CB0" />
+          </linearGradient>
+        </defs>
+        <rect width="360" height="150" fill="url(#razaviSky)" />
+        <circle cx="48" cy="22" r="1.5" fill="#FBE4A4" opacity="0.9" />
+        <circle cx="118" cy="16" r="1.2" fill="#FBE4A4" opacity="0.8" />
+        <circle cx="246" cy="20" r="1.5" fill="#FBE4A4" opacity="0.9" />
+        <circle cx="314" cy="28" r="1.3" fill="#FBE4A4" opacity="0.75" />
+
+        {/* Binalud mountain horizon */}
+        <polygon points="0,98 78,46 154,84 242,40 318,80 360,56 360,150 0,150" fill="#1F2C45" />
+        {/* Nishapur turquoise dome & golden-rimmed finial */}
+        <path d="M148 76 Q180 28 212 76 Z" fill="#20B7C9" stroke="#F4CE74" strokeWidth="1.6" />
+        <rect x="134" y="76" width="92" height="32" fill="#2D2838" stroke="#E8BF62" strokeWidth="1.2" />
+        <path d="M164 108 L164 84 Q180 72 196 84 L196 108 Z" fill="#163547" stroke="#F4CE74" strokeWidth="1" />
+        {/* Saffron plateau terrace & radiant turquoise channel */}
+        <rect x="0" y="108" width="360" height="42" fill="#231D30" />
+        <g fill="#D59AF2" opacity="0.85">
+          <circle cx="46" cy="118" r="2.6" />
+          <circle cx="72" cy="126" r="2.2" />
+          <circle cx="288" cy="118" r="2.6" />
+          <circle cx="316" cy="126" r="2.2" />
+        </g>
+        <rect x="24" y="128" width="312" height="9" rx="4.5" fill="url(#razaviPulse)" />
+        <circle cx="180" cy="132" r="9" fill="#F4CE74" stroke="#123A4A" strokeWidth="2" />
+        <circle cx="180" cy="132" r="3.5" fill="#7DF7FF" />
+      </svg>
+    );
+  }
+
+  if (regionId === 'shahsavan') {
+    // Route 11: Shahsavan Heritage — Snow-capped Sabalan highlands, Moghan plain, traditional felt alachiq & Varni-inspired geometric trim
+    return (
+      <svg
+        viewBox="0 0 360 150"
+        className={`w-full h-32 sm:h-36 block object-cover ${filterClass}`}
+        preserveAspectRatio="xMidYMid slice"
+        aria-hidden="true"
+      >
+        <defs>
+          <linearGradient id="shahsavanSky" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#0E1D24" />
+            <stop offset="56%" stopColor="#1D4446" />
+            <stop offset="100%" stopColor="#35685C" />
+          </linearGradient>
+          <linearGradient id="shahsavanStream" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0%" stopColor="#26A69A" />
+            <stop offset="50%" stopColor="#6AF5DF" />
+            <stop offset="100%" stopColor="#26A69A" />
+          </linearGradient>
+        </defs>
+        <rect width="360" height="150" fill="url(#shahsavanSky)" />
+
+        {/* Snow-capped Mount Sabalan massif */}
+        <polygon points="0,98 62,56 122,82 182,22 246,78 308,52 360,84 360,150 0,150" fill="#1C3639" />
+        <polygon points="182,22 204,44 190,46 178,39 164,46" fill="#EAF7F8" opacity="0.72" />
+        <polygon points="62,56 76,68 62,70 50,66" fill="#DDF0F2" opacity="0.38" />
+
+        {/* Verdant Moghan & piedmont grazing hills */}
+        <path d="M0 102 Q88 76 176 98 T360 88 L360 150 L0 150 Z" fill="#234A3F" />
+        <path d="M0 116 Q116 98 228 114 T360 106 L360 150 L0 150 Z" fill="#1A352F" />
+
+        {/* Traditional domed Shahsavan felt tents (Alachiq) */}
+        <g stroke="#E6BA5E" strokeOpacity="0.65" strokeWidth="1.1">
+          <path d="M74 114 Q96 84 118 114 Z" fill="#593A2B" />
+          <path d="M90 114 L90 103 Q96 98 102 103 L102 114 Z" fill="#1C1917" />
+          <path d="M236 112 Q262 78 288 112 Z" fill="#633F2E" />
+          <path d="M254 112 L254 100 Q262 94 270 100 L270 112 Z" fill="#1C1917" />
+        </g>
+
+        {/* Alpine river channel */}
+        <path d="M180 68 Q168 92 184 112 T174 136" stroke="url(#shahsavanStream)" strokeWidth="6" fill="none" strokeLinecap="round" />
+
+        {/* Subtle Varni flatweave diamond border strip at base */}
+        <rect x="0" y="135" width="360" height="15" fill="#231819" />
+        <g fill="#E07A54" stroke="#43C2A8" strokeWidth="0.9">
+          <polygon points="24,142 34,137 44,142 34,147" />
+          <polygon points="72,142 82,137 92,142 82,147" />
+          <polygon points="120,142 130,137 140,142 130,147" />
+          <polygon points="170,142 180,137 190,142 180,147" />
+          <polygon points="220,142 230,137 240,142 230,147" />
+          <polygon points="268,142 278,137 288,142 278,147" />
+          <polygon points="316,142 326,137 336,142 326,147" />
+        </g>
+      </svg>
+    );
+  }
+
+  // Route 12: Turkmen Sahra Heritage — Open golden steppe, Gorgan-Rud & Caspian horizon, Turkmen brick tower silhouette, subtle octagonal gol carpet border
   return (
     <svg
       viewBox="0 0 360 150"
@@ -469,40 +575,49 @@ export function RegionArtworkSvg({ regionId, locked = false }: RegionArtworkSvgP
       aria-hidden="true"
     >
       <defs>
-        <linearGradient id="razaviSky" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#0D1630" />
-          <stop offset="56%" stopColor="#1D4363" />
-          <stop offset="100%" stopColor="#4F3D66" />
+        <linearGradient id="turkmenSky" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#1B1324" />
+          <stop offset="55%" stopColor="#5C2D32" />
+          <stop offset="100%" stopColor="#C47E38" />
         </linearGradient>
-        <linearGradient id="razaviPulse" x1="0" y1="0" x2="1" y2="0">
-          <stop offset="0%" stopColor="#199CB0" />
-          <stop offset="50%" stopColor="#7DF7FF" />
-          <stop offset="100%" stopColor="#199CB0" />
+        <linearGradient id="turkmenRiver" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0%" stopColor="#167B8E" />
+          <stop offset="50%" stopColor="#5BE9F4" />
+          <stop offset="100%" stopColor="#167B8E" />
         </linearGradient>
       </defs>
-      <rect width="360" height="150" fill="url(#razaviSky)" />
-      <circle cx="48" cy="22" r="1.5" fill="#FBE4A4" opacity="0.9" />
-      <circle cx="118" cy="16" r="1.2" fill="#FBE4A4" opacity="0.8" />
-      <circle cx="246" cy="20" r="1.5" fill="#FBE4A4" opacity="0.9" />
-      <circle cx="314" cy="28" r="1.3" fill="#FBE4A4" opacity="0.75" />
+      <rect width="360" height="150" fill="url(#turkmenSky)" />
+      {/* Warm setting sun over Turkmen steppe */}
+      <circle cx="284" cy="46" r="18" fill="#F8CD6B" opacity="0.82" />
 
-      {/* Binalud mountain horizon */}
-      <polygon points="0,98 78,46 154,84 242,40 318,80 360,56 360,150 0,150" fill="#1F2C45" />
-      {/* Nishapur turquoise dome & golden-rimmed finial */}
-      <path d="M148 76 Q180 28 212 76 Z" fill="#20B7C9" stroke="#F4CE74" strokeWidth="1.6" />
-      <rect x="134" y="76" width="92" height="32" fill="#2D2838" stroke="#E8BF62" strokeWidth="1.2" />
-      <path d="M164 108 L164 84 Q180 72 196 84 L196 108 Z" fill="#163547" stroke="#F4CE74" strokeWidth="1" />
-      {/* Saffron plateau terrace & radiant turquoise finale canal */}
-      <rect x="0" y="108" width="360" height="42" fill="#231D30" />
-      <g fill="#D59AF2" opacity="0.85">
-        <circle cx="46" cy="118" r="2.6" />
-        <circle cx="72" cy="126" r="2.2" />
-        <circle cx="288" cy="118" r="2.6" />
-        <circle cx="316" cy="126" r="2.2" />
+      {/* Rolling Turkmen Sahra steppe hills & Maraveh ridges */}
+      <path d="M0 94 Q84 72 178 90 T360 80 L360 150 L0 150 Z" fill="#462C22" />
+      <path d="M0 108 Q106 94 218 106 T360 98 L360 150 L0 150 Z" fill="#2E1E1B" />
+
+      {/* Tall Brick Minaret / Monument Tower Silhouette on plain */}
+      <polygon points="168,96 173,28 187,28 192,96" fill="#633D28" stroke="#E5A83B" strokeWidth="1" />
+      <polygon points="171,28 180,12 189,28" fill="#8C5432" stroke="#E5A83B" strokeWidth="0.9" />
+
+      {/* Stylized steppe horse silhouettes */}
+      <g fill="#1D1213">
+        <path d="M74 102 Q82 93 90 95 L96 89 L100 91 L95 98 L98 108 L94 108 L92 101 L80 101 L78 108 L74 108 Z" />
+        <path d="M254 103 Q262 94 270 96 L276 90 L280 92 L275 99 L278 109 L274 109 L272 102 L260 102 L258 109 L254 109 Z" />
       </g>
-      <rect x="24" y="128" width="312" height="9" rx="4.5" fill="url(#razaviPulse)" />
-      <circle cx="180" cy="132" r="9" fill="#F4CE74" stroke="#123A4A" strokeWidth="2" />
-      <circle cx="180" cy="132" r="3.5" fill="#7DF7FF" />
+
+      {/* Meandering Gorgan-Rud & Caspian coastal pulse */}
+      <path d="M0 120 Q92 110 180 121 T360 118" stroke="url(#turkmenRiver)" strokeWidth="7" fill="none" />
+      <line x1="36" y1="118" x2="112" y2="118" stroke="#DCFEFF" strokeWidth="1.4" strokeLinecap="round" opacity="0.8" />
+      <line x1="226" y1="119" x2="312" y2="119" stroke="#DCFEFF" strokeWidth="1.4" strokeLinecap="round" opacity="0.8" />
+
+      {/* Authentic Turkmen octagonal gol carpet border at base */}
+      <rect x="0" y="135" width="360" height="15" fill="#3B161B" />
+      <g fill="#E5A83B" stroke="#C84B4B" strokeWidth="1">
+        <polygon points="28,138 38,138 42,142 38,147 28,147 24,142" />
+        <polygon points="92,138 102,138 106,142 102,147 92,147 88,142" />
+        <polygon points="175,138 185,138 189,142 185,147 175,147 171,142" />
+        <polygon points="258,138 268,138 272,142 268,147 258,147 254,142" />
+        <polygon points="322,138 332,138 336,142 332,147 322,147 318,142" />
+      </g>
     </svg>
   );
 }

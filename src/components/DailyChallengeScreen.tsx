@@ -24,6 +24,7 @@ import type {
 } from '../engine/types';
 import { EdgeStatusBar } from './EdgeStatusBar';
 import { LeaderboardPanel } from './LeaderboardPanel';
+import { PlayerNicknameControl } from './PlayerNicknameControl';
 
 interface DailyChallengeScreenProps {
   dailyChallenge: DailyChallengeDefinition;
@@ -305,6 +306,9 @@ export function DailyChallengeScreen({
 
         {/* Live Edge API Availability Status */}
         <EdgeStatusBar compact />
+
+        {/* Player Leaderboard Display Name */}
+        <PlayerNicknameControl />
 
         {/* Server-Backed Global Daily Leaderboard (Honest STORAGE_NOT_CONFIGURED / Offline / Persisted States) */}
         <LeaderboardPanel

@@ -1,9 +1,36 @@
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
+import dotenv from 'dotenv';
 import fs from 'fs';
 import path from 'path';
 import { defineConfig, type Plugin } from 'vite';
 import { handleEdgeRequest } from './edge/router';
+
+const EDGE_BINDING_KEYS = [
+  'APP_ENV',
+  'EC_URL',
+  'ALLOWED_ORIGINS',
+  'LEADERBOARD_STORAGE_DRIVER',
+  'LEADERBOARD_DATABASE_URL',
+  'LEADERBOARD_DATABASE_TOKEN',
+  'LEADERBOARD_DATABASE_PASSWORD',
+  'EDGE_SIGNING_SECRET',
+  'REQUIRE_ATTEMPT_TOKEN',
+  'RATE_LIMIT_MAX_PER_MIN',
+  'ENABLE_STRUCTURED_LOGS',
+] as const;
+
+function readDevEdgeBindings(): Record<string, unknown> {
+  dotenv.config({ quiet: true });
+  const bindings: Record<string, unknown> = {};
+  for (const key of EDGE_BINDING_KEYS) {
+    const val = process.env[key];
+    if (typeof val === 'string' && val.trim().length > 0) {
+      bindings[key] = val.trim();
+    }
+  }
+  return bindings;
+}
 
 function createDevEdgeApiBridgePlugin(): Plugin {
   return {
@@ -49,6 +76,7 @@ function createDevEdgeApiBridgePlugin(): Plugin {
           });
 
           const webResponse = await handleEdgeRequest(webRequest, {
+            bindings: readDevEdgeBindings(),
             configOverrides: { appEnv: 'development' },
           });
 

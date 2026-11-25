@@ -22,7 +22,9 @@ export type RegionId =
   | 'fars'
   | 'semnan'
   | 'northwest'
-  | 'razavi_khorasan';
+  | 'razavi_khorasan'
+  | 'shahsavan'
+  | 'turkmen_sahra';
 
 export type DestinationId =
   | 'yazd'
@@ -64,7 +66,17 @@ export type DestinationId =
   | 'nishapur'
   | 'sabzevar'
   | 'kashmar'
-  | 'torbat_heydarieh';
+  | 'torbat_heydarieh'
+  | 'parsabad'
+  | 'bileh_savar'
+  | 'germi'
+  | 'meshgin_shahr'
+  | 'ardabil_sabalan'
+  | 'gonbad_kavus'
+  | 'aq_qala'
+  | 'bandar_torkaman'
+  | 'gomishan'
+  | 'maraveh_tappeh';
 
 export type Difficulty =
   | 'easy'

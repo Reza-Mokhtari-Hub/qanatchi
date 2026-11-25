@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Cloud, CloudOff, RefreshCw, ShieldCheck } from 'lucide-react';
-import { fetchApiHealth, type ApiHealthResult } from '../api/edgeClient';
+import { fetchApiHealth, fetchApiReady, type ApiHealthResult } from '../api/edgeClient';
 
 interface EdgeStatusBarProps {
   compact?: boolean;
@@ -9,6 +9,7 @@ interface EdgeStatusBarProps {
 export function EdgeStatusBar({ compact = false }: EdgeStatusBarProps) {
   const [loading, setLoading] = useState<boolean>(true);
   const [health, setHealth] = useState<ApiHealthResult | null>(null);
+  const [dbReachable, setDbReachable] = useState<boolean>(false);
   const mountedRef = useRef<boolean>(true);
   const requestSeqRef = useRef<number>(0);
 
@@ -23,10 +24,16 @@ export function EdgeStatusBar({ compact = false }: EdgeStatusBarProps) {
     const seq = ++requestSeqRef.current;
     setLoading(true);
     const result = await fetchApiHealth();
+    let reachable = false;
+    if (result.status === 'online' && result.data.storage.configured) {
+      const readyRes = await fetchApiReady();
+      reachable = readyRes.ready;
+    }
     if (!mountedRef.current || seq !== requestSeqRef.current) {
       return;
     }
     setHealth(result);
+    setDbReachable(reachable);
     setLoading(false);
   }, []);
 
@@ -35,7 +42,8 @@ export function EdgeStatusBar({ compact = false }: EdgeStatusBarProps) {
   }, [loadHealth]);
 
   const isOnline = health?.status === 'online';
-  const storageReady = isOnline && health.data.storage.configured;
+  const storageReady = isOnline && health.data.storage.configured && dbReachable;
+  const storageConfiguredPending = isOnline && health.data.storage.configured && !dbReachable;
 
   return (
     <section
@@ -70,8 +78,10 @@ export function EdgeStatusBar({ compact = false }: EdgeStatusBarProps) {
                 ? 'در حال بررسی وضعیت سرور لبه...'
                 : isOnline
                   ? storageReady
-                    ? 'سرور لبه آروان فعال · تأیید سرور و جدول جهانی متصل است'
-                    : 'سرور لبه فعال · تأیید سرور آماده (حافظه جدول جهانی در انتظار پیکربندی)'
+                    ? 'سرور لبه آروان فعال · تأیید سرور و پایگاه‌داده جهانی متصل است'
+                    : storageConfiguredPending
+                      ? 'سرور لبه فعال · پایگاه‌داده پیکربندی شده اما در حال حاضر در دسترس نیست'
+                      : 'سرور لبه فعال · تأیید سرور آماده (حافظه جدول جهانی در انتظار پیکربندی)'
                   : 'حالت آفلاین · سرور لبه در دسترس نیست'}
             </p>
             {!loading && (

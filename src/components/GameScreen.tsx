@@ -23,9 +23,17 @@ import {
   VolumeX,
 } from 'lucide-react';
 import {
-  verifyChallengeOnServer,
-  type ServerVerifyResult,
+  createClientIdempotencyKey,
+  getOrCreateAnonymousPlayerId,
+  startChallengeAttempt,
+  submitVerifiedScoreToLeaderboard,
+  type LeaderboardSubmitResult,
 } from '../api/edgeClient';
+import {
+  enqueueUnsentSubmission,
+  getPlayerDisplayLabel,
+  removeUnsentSubmission,
+} from '../storage/submissionQueue';
 import { useWaterFlowAnimation } from '../animation/useWaterFlowAnimation';
 import { soundEngine } from '../audio/soundEffects';
 import { getDestinationForLevelId } from '../campaign/destinations';
@@ -124,7 +132,7 @@ export function GameScreen({
   const [challengeOutcome, setChallengeOutcome] = useState<ChallengeCompletionOutcome | null>(null);
   const [victoryMilestone, setVictoryMilestone] = useState<StoryMoment | null>(null);
   const [serverVerifyLoading, setServerVerifyLoading] = useState<boolean>(false);
-  const [serverVerifyResult, setServerVerifyResult] = useState<ServerVerifyResult | null>(null);
+  const [serverSubmitResult, setServerSubmitResult] = useState<LeaderboardSubmitResult | null>(null);
   const [lastRotatedKey, setLastRotatedKey] = useState<string | null>(null);
   const [lastRotatedSeq, setLastRotatedSeq] = useState<number>(0);
 
@@ -132,6 +140,9 @@ export function GameScreen({
   const hasCompletedRef = useRef<boolean>(false);
   const victoryDelayRef = useRef<number | null>(null);
   const actionsLogRef = useRef<TileRotationAction[]>([]);
+  const attemptTokenRef = useRef<string | undefined>(undefined);
+  const attemptTokenPromiseRef = useRef<Promise<void> | null>(null);
+  const idempotencyKeyRef = useRef<string | null>(null);
 
   const isChallengeMode = mode === 'daily' || mode === 'friend';
   const region = getRegionById(level.regionId);
@@ -152,6 +163,37 @@ export function GameScreen({
     };
   }, [clearVictoryDelay]);
 
+  const acquireAttemptToken = useCallback(() => {
+    if ((mode !== 'daily' && mode !== 'friend') || !challengeMeta) {
+      attemptTokenRef.current = undefined;
+      attemptTokenPromiseRef.current = null;
+      return Promise.resolve();
+    }
+    const playerId = getOrCreateAnonymousPlayerId();
+    const promise = startChallengeAttempt({
+      challengeType: mode,
+      challengeId: challengeMeta.challengeId,
+      dateKey: mode === 'daily' ? challengeMeta.dateKey : undefined,
+      algoVersion: challengeMeta.algoVersion,
+      playerId,
+    })
+      .then((res) => {
+        if (res.ok) {
+          attemptTokenRef.current = res.data.attemptToken;
+        }
+      })
+      .catch(() => {
+        // Ignore transient token fetch failures; server handles offline/optional tokens cleanly
+      })
+      .finally(() => {
+        if (attemptTokenPromiseRef.current === promise) {
+          attemptTokenPromiseRef.current = null;
+        }
+      });
+    attemptTokenPromiseRef.current = promise;
+    return promise;
+  }, [challengeMeta, mode]);
+
   // Reset entire board state whenever active puzzle/session changes
   useEffect(() => {
     clearVictoryDelay();
@@ -169,12 +211,16 @@ export function GameScreen({
     setChallengeOutcome(null);
     setVictoryMilestone(null);
     setServerVerifyLoading(false);
-    setServerVerifyResult(null);
+    setServerSubmitResult(null);
     setLastRotatedKey(null);
     setLastRotatedSeq(0);
     actionsLogRef.current = [];
+    attemptTokenRef.current = undefined;
+    attemptTokenPromiseRef.current = null;
+    idempotencyKeyRef.current = null;
     hasCompletedRef.current = false;
     flowAnim.resetFlowAnimation();
+    void acquireAttemptToken();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [effectiveSessionKey]);
 
@@ -185,15 +231,47 @@ export function GameScreen({
       return;
     }
     const actionsSnapshot = actionsLogRef.current.slice();
+    const playerId = getOrCreateAnonymousPlayerId();
+    const displayLabel = getPlayerDisplayLabel();
+    const idempotencyKey =
+      idempotencyKeyRef.current ?? createClientIdempotencyKey(`sub_${mode}`);
+    idempotencyKeyRef.current = idempotencyKey;
+
     setServerVerifyLoading(true);
-    const res = await verifyChallengeOnServer({
+    if (attemptTokenPromiseRef.current) {
+      await attemptTokenPromiseRef.current;
+    }
+
+    const res = await submitVerifiedScoreToLeaderboard({
       challengeType: mode,
       challengeId: challengeMeta.challengeId,
       dateKey: mode === 'daily' ? challengeMeta.dateKey : undefined,
       algoVersion: challengeMeta.algoVersion,
       actions: actionsSnapshot,
+      playerId,
+      displayLabel,
+      attemptToken: attemptTokenRef.current,
+      idempotencyKey,
     });
-    setServerVerifyResult(res);
+
+    if (res.status === 'offline') {
+      enqueueUnsentSubmission({
+        idempotencyKey,
+        challengeType: mode,
+        challengeId: challengeMeta.challengeId,
+        dateKey: mode === 'daily' ? challengeMeta.dateKey : undefined,
+        algoVersion: challengeMeta.algoVersion,
+        actions: actionsSnapshot,
+        playerId,
+        displayLabel,
+        attemptToken: attemptTokenRef.current,
+        queuedAt: new Date().toISOString(),
+      });
+    } else if (res.status === 'submitted') {
+      removeUnsentSubmission(idempotencyKey);
+    }
+
+    setServerSubmitResult(res);
     setServerVerifyLoading(false);
   }, [challengeMeta, mode]);
 
@@ -237,14 +315,17 @@ export function GameScreen({
       setChallengeOutcome(null);
       setVictoryMilestone(null);
       setServerVerifyLoading(false);
-      setServerVerifyResult(null);
+      setServerSubmitResult(null);
       setLastRotatedKey(null);
       setLastRotatedSeq(0);
       actionsLogRef.current = [];
+      attemptTokenRef.current = undefined;
+      idempotencyKeyRef.current = null;
       hasCompletedRef.current = false;
       onSetPaused(false);
+      void acquireAttemptToken();
     },
-    [clearVictoryDelay, flowAnim, hasVictory, level, onSetPaused, settings.soundEnabled],
+    [acquireAttemptToken, clearVictoryDelay, flowAnim, hasVictory, level, onSetPaused, settings.soundEnabled],
   );
 
   const handleRotateTile = useCallback(
@@ -1040,40 +1121,66 @@ export function GameScreen({
               <span>شروع مجدد: {toPersianDigits(challengeVictoryScore.restarts)}</span>
             </div>
 
-            {/* Server-Side Action Verification Status (strictly distinct from local offline score) */}
+            {/* Server-Side Action Verification & Leaderboard Submission Status */}
             {challengeMeta && (
               <div
                 data-testid="server-verification-status"
                 className="mt-3 rounded-xl bg-[#102229] border border-[#245C68] p-3 text-right text-xs leading-relaxed"
               >
                 {serverVerifyLoading ? (
-                  <p className="text-[#9FDCE5]">در حال تأیید مسیر حل در سرور لبه...</p>
-                ) : serverVerifyResult?.status === 'verified' ? (
+                  <p className="text-[#9FDCE5]">در حال تأیید مسیر حل و ثبت در سرور لبه...</p>
+                ) : serverSubmitResult?.status === 'submitted' ? (
                   <div className="tabular-nums">
                     <p className="font-semibold text-[#7DF8C4] flex items-center gap-1.5">
                       <ShieldCheck className="w-4 h-4 shrink-0" aria-hidden="true" />
                       <span>
-                        تأیید شده توسط سرور لبه (نسخه رتبه‌بندی{' '}
-                        {toPersianDigits(serverVerifyResult.data.scoringVersion)})
+                        ثبت‌شده در جدول جهانی (رتبه‌بندی نسخه{' '}
+                        {toPersianDigits(serverSubmitResult.data.entry.scoringVersion)})
                       </span>
                     </p>
                     <p className="text-[#CBEFF2] mt-1">
-                      امتیاز تأییدشده سرور:{' '}
+                      امتیاز سرور:{' '}
                       <span
                         data-testid="server-verified-score"
                         className="font-bold text-[#F2C96B]"
                       >
-                        {toPersianDigits(serverVerifyResult.data.rankedScore.score)}
+                        {toPersianDigits(serverSubmitResult.data.entry.score)}
                       </span>{' '}
-                      · حرکت تأییدشده:{' '}
-                      {toPersianDigits(serverVerifyResult.data.verifiedMoves)}
+                      · رتبه:{' '}
+                      <span
+                        data-testid="server-verified-rank"
+                        className="font-bold text-[#6CECF5]"
+                      >
+                        #{toPersianDigits(serverSubmitResult.data.entry.rank)}
+                      </span>{' '}
+                      · حرکت:{' '}
+                      {toPersianDigits(serverSubmitResult.data.entry.verifiedMoves)}
                     </p>
                   </div>
-                ) : serverVerifyResult?.status === 'offline' ? (
+                ) : serverSubmitResult?.status === 'storage_not_configured' ? (
+                  <div className="tabular-nums">
+                    <p className="font-semibold text-[#7DF8C4] flex items-center gap-1.5">
+                      <ShieldCheck className="w-4 h-4 shrink-0" aria-hidden="true" />
+                      <span>تأیید شده توسط سرور لبه</span>
+                    </p>
+                    {typeof serverSubmitResult.verifiedScore === 'number' && (
+                      <p className="text-[#CBEFF2] mt-1">
+                        امتیاز تأییدشده سرور:{' '}
+                        <span
+                          data-testid="server-verified-score"
+                          className="font-bold text-[#F2C96B]"
+                        >
+                          {toPersianDigits(serverSubmitResult.verifiedScore)}
+                        </span>
+                      </p>
+                    )}
+                    <p className="text-[#A9CFD6] mt-1">{serverSubmitResult.messageFa}</p>
+                  </div>
+                ) : serverSubmitResult?.status === 'offline' ? (
                   <div className="flex items-center justify-between gap-2 flex-wrap">
                     <span className="text-[#E6BA5E] flex items-center gap-1.5">
                       <ShieldOff className="w-4 h-4 shrink-0" aria-hidden="true" />
-                      <span>{serverVerifyResult.messageFa}</span>
+                      <span>{serverSubmitResult.messageFa}</span>
                     </span>
                     <button
                       type="button"
@@ -1084,11 +1191,23 @@ export function GameScreen({
                       تلاش مجدد
                     </button>
                   </div>
-                ) : serverVerifyResult?.status === 'rejected' ? (
-                  <p className="text-[#FCA5A5] flex items-center gap-1.5">
-                    <ShieldOff className="w-4 h-4 shrink-0" aria-hidden="true" />
-                    <span>{serverVerifyResult.messageFa}</span>
-                  </p>
+                ) : serverSubmitResult?.status === 'error' ? (
+                  <div className="flex items-center justify-between gap-2 flex-wrap">
+                    <span className="text-[#FCA5A5] flex items-center gap-1.5">
+                      <ShieldOff className="w-4 h-4 shrink-0" aria-hidden="true" />
+                      <span>{serverSubmitResult.messageFa}</span>
+                    </span>
+                    {serverSubmitResult.code === 'STORAGE_UNAVAILABLE' && (
+                      <button
+                        type="button"
+                        data-testid="btn-retry-server-verify"
+                        onClick={() => void triggerServerVerification()}
+                        className="min-h-[36px] px-3 rounded-lg bg-[#213137] hover:bg-[#2C4047] text-[#E6FAFC] text-[11px] font-semibold cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#5BE8F5]"
+                      >
+                        تلاش مجدد
+                      </button>
+                    )}
+                  </div>
                 ) : null}
               </div>
             )}

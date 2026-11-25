@@ -1,6 +1,7 @@
 import { isRotatableTile, rotateClockwise } from '../engine/connections';
 import { simulateWaterFlow } from '../engine/simulator';
 import type { LevelDefinition, TileState } from '../engine/types';
+import { LEVELS } from '../levels/levels';
 import {
   DAILY_PUZZLE_ALGO_VERSION,
   generateDailyChallenge,
@@ -20,8 +21,10 @@ import { diffTehranDateKeys, getTehranDateKey, isValidDateKey } from './tehranTi
 
 export const MAX_SUBMITTED_ACTIONS = 200;
 export const MAX_VERIFY_BODY_BYTES = 16 * 1024; // 16 KiB
+export const CAMPAIGN_PUZZLE_ALGO_VERSION = 1;
+export const SUPPORTED_CAMPAIGN_ALGO_VERSIONS: readonly number[] = [1];
 
-export type VerifiableChallengeType = 'daily' | 'friend';
+export type VerifiableChallengeType = 'campaign' | 'daily' | 'friend';
 
 export interface TileRotationAction {
   row: number;
@@ -32,8 +35,11 @@ export interface ChallengeVerifyRequestPayload {
   challengeType: VerifiableChallengeType;
   challengeId: string;
   dateKey?: string;
+  levelId?: number;
   algoVersion: number;
   actions: TileRotationAction[];
+  attemptToken?: string;
+  idempotencyKey?: string;
 }
 
 export type ChallengeVerifyErrorCode =
@@ -44,6 +50,7 @@ export type ChallengeVerifyErrorCode =
   | 'UNSUPPORTED_ALGO_VERSION'
   | 'CHALLENGE_ID_MISMATCH'
   | 'INVALID_FRIEND_CHALLENGE'
+  | 'INVALID_LEVEL_ID'
   | 'INVALID_ACTIONS_FORMAT'
   | 'ACTION_LIMIT_EXCEEDED'
   | 'INVALID_ACTION_COORDINATES'
@@ -88,40 +95,40 @@ function buildInitialBoardFromDefinition(level: LevelDefinition): TileState[][] 
   );
 }
 
-/**
- * Independently reconstruct the trusted puzzle definition and replay a submitted
- * clockwise tile-rotation sequence against the authoritative Qanatchi simulation engine.
- *
- * Security guarantees:
- * - Never reads or trusts client-supplied score, stars, move count, board grid, or min moves.
- * - Rejects malformed inputs, unsupported algorithm versions, out-of-bounds actions,
- *   rotations on locked/non-rotatable tiles, excessive action counts, leaks, and unreached destinations.
- */
-export function replayAndVerifyChallengeSubmission(
-  rawPayload: unknown,
-  options?: { now?: Date },
-): ChallengeVerificationOutcome {
-  if (!rawPayload || typeof rawPayload !== 'object' || Array.isArray(rawPayload)) {
-    return {
-      ok: false,
-      httpStatus: 400,
-      code: 'INVALID_ACTIONS_FORMAT',
-      message: 'Submission payload must be a JSON object.',
-    };
-  }
+export interface ResolvedChallengeDefinition {
+  ok: true;
+  challengeType: VerifiableChallengeType;
+  challengeId: string;
+  dateKey: string | null;
+  algoVersion: number;
+  templateId: string;
+  level: LevelDefinition;
+}
 
-  const body = rawPayload as Record<string, unknown>;
-  const challengeType = body.challengeType;
-  if (challengeType !== 'daily' && challengeType !== 'friend') {
+export function resolveTrustedChallengeDefinition(
+  rawPayload: Record<string, unknown>,
+  options?: { now?: Date },
+):
+  | ResolvedChallengeDefinition
+  | {
+      ok: false;
+      httpStatus: number;
+      code: ChallengeVerifyErrorCode;
+      message: string;
+      details?: Record<string, unknown>;
+    } {
+  const challengeType = rawPayload.challengeType;
+  if (challengeType !== 'campaign' && challengeType !== 'daily' && challengeType !== 'friend') {
     return {
       ok: false,
       httpStatus: 400,
       code: 'INVALID_CHALLENGE_TYPE',
-      message: 'challengeType must be "daily" or "friend".',
+      message: 'challengeType must be "campaign", "daily", or "friend".',
     };
   }
 
-  const rawChallengeId = typeof body.challengeId === 'string' ? body.challengeId.trim() : '';
+  const rawChallengeId =
+    typeof rawPayload.challengeId === 'string' ? rawPayload.challengeId.trim() : '';
   if (!rawChallengeId || rawChallengeId.length > 64) {
     return {
       ok: false,
@@ -131,7 +138,7 @@ export function replayAndVerifyChallengeSubmission(
     };
   }
 
-  const rawAlgoVersion = body.algoVersion;
+  const rawAlgoVersion = rawPayload.algoVersion;
   if (typeof rawAlgoVersion !== 'number' || !Number.isInteger(rawAlgoVersion)) {
     return {
       ok: false,
@@ -141,39 +148,68 @@ export function replayAndVerifyChallengeSubmission(
     };
   }
 
-  const rawActions = body.actions;
-  if (!Array.isArray(rawActions)) {
+  if (challengeType === 'campaign') {
+    if (!SUPPORTED_CAMPAIGN_ALGO_VERSIONS.includes(rawAlgoVersion)) {
+      return {
+        ok: false,
+        httpStatus: 400,
+        code: 'UNSUPPORTED_ALGO_VERSION',
+        message: `Unsupported campaign puzzle algorithm version: ${rawAlgoVersion}.`,
+        details: { supportedVersions: [...SUPPORTED_CAMPAIGN_ALGO_VERSIONS] },
+      };
+    }
+
+    const match = /^campaign-(\d+)$/i.exec(rawChallengeId);
+    const levelIdFromBody =
+      typeof rawPayload.levelId === 'number' && Number.isInteger(rawPayload.levelId)
+        ? rawPayload.levelId
+        : match
+          ? Number.parseInt(match[1], 10)
+          : NaN;
+
+    if (
+      !Number.isInteger(levelIdFromBody) ||
+      levelIdFromBody < 1 ||
+      levelIdFromBody > LEVELS.length
+    ) {
+      return {
+        ok: false,
+        httpStatus: 400,
+        code: 'INVALID_LEVEL_ID',
+        message: `Campaign levelId must be an integer between 1 and ${LEVELS.length}.`,
+      };
+    }
+
+    const expectedChallengeId = `campaign-${levelIdFromBody}`;
+    if (rawChallengeId.toLowerCase() !== expectedChallengeId) {
+      return {
+        ok: false,
+        httpStatus: 400,
+        code: 'CHALLENGE_ID_MISMATCH',
+        message: `challengeId must match "${expectedChallengeId}" for levelId=${levelIdFromBody}.`,
+      };
+    }
+
+    const foundLevel = LEVELS.find((lvl) => lvl.id === levelIdFromBody);
+    if (!foundLevel) {
+      return {
+        ok: false,
+        httpStatus: 400,
+        code: 'INVALID_LEVEL_ID',
+        message: `Unknown campaign levelId: ${levelIdFromBody}.`,
+      };
+    }
+
     return {
-      ok: false,
-      httpStatus: 400,
-      code: 'INVALID_ACTIONS_FORMAT',
-      message: 'actions must be an array of { row, col } rotation steps.',
+      ok: true,
+      challengeType: 'campaign',
+      challengeId: expectedChallengeId,
+      dateKey: null,
+      algoVersion: CAMPAIGN_PUZZLE_ALGO_VERSION,
+      templateId: `campaign_lvl_${foundLevel.id}`,
+      level: foundLevel,
     };
   }
-
-  if (rawActions.length === 0) {
-    return {
-      ok: false,
-      httpStatus: 422,
-      code: 'SOLUTION_INCOMPLETE',
-      message: 'Action sequence cannot be empty.',
-    };
-  }
-
-  if (rawActions.length > MAX_SUBMITTED_ACTIONS) {
-    return {
-      ok: false,
-      httpStatus: 400,
-      code: 'ACTION_LIMIT_EXCEEDED',
-      message: `Action sequence exceeds maximum allowed length of ${MAX_SUBMITTED_ACTIONS}.`,
-      details: { maxActions: MAX_SUBMITTED_ACTIONS, received: rawActions.length },
-    };
-  }
-
-  let level: LevelDefinition;
-  let canonicalChallengeId: string;
-  let resolvedDateKey: string | null = null;
-  let templateId: string;
 
   if (challengeType === 'daily') {
     if (!SUPPORTED_DAILY_ALGO_VERSIONS.includes(rawAlgoVersion)) {
@@ -186,7 +222,7 @@ export function replayAndVerifyChallengeSubmission(
       };
     }
 
-    const rawDateKey = typeof body.dateKey === 'string' ? body.dateKey.trim() : '';
+    const rawDateKey = typeof rawPayload.dateKey === 'string' ? rawPayload.dateKey.trim() : '';
     if (!isValidDateKey(rawDateKey)) {
       return {
         ok: false,
@@ -218,49 +254,120 @@ export function replayAndVerifyChallengeSubmission(
       };
     }
 
-    level = daily.level;
-    canonicalChallengeId = daily.challengeId;
-    resolvedDateKey = daily.dateKey;
-    templateId = daily.templateId;
-  } else {
-    if (!SUPPORTED_FRIEND_ALGO_VERSIONS.includes(rawAlgoVersion)) {
-      return {
-        ok: false,
-        httpStatus: 400,
-        code: 'UNSUPPORTED_ALGO_VERSION',
-        message: `Unsupported friend challenge algorithm version: ${rawAlgoVersion}.`,
-        details: { supportedVersions: [...SUPPORTED_FRIEND_ALGO_VERSIONS] },
-      };
-    }
-
-    const parsed = parseFriendChallengeCode(rawChallengeId);
-    if (!parsed.ok) {
-      const code: ChallengeVerifyErrorCode =
-        parsed.reason === 'unsupported_version'
-          ? 'UNSUPPORTED_ALGO_VERSION'
-          : 'INVALID_FRIEND_CHALLENGE';
-      return {
-        ok: false,
-        httpStatus: 400,
-        code,
-        message: `Invalid friend challenge code (${parsed.reason}).`,
-      };
-    }
-
-    if (parsed.challenge.algoVersion !== rawAlgoVersion) {
-      return {
-        ok: false,
-        httpStatus: 400,
-        code: 'CHALLENGE_ID_MISMATCH',
-        message: 'algoVersion does not match the friend challenge identifier.',
-      };
-    }
-
-    level = parsed.challenge.level;
-    canonicalChallengeId = parsed.challenge.challengeId;
-    resolvedDateKey = null;
-    templateId = parsed.challenge.templateId;
+    return {
+      ok: true,
+      challengeType: 'daily',
+      challengeId: daily.challengeId,
+      dateKey: daily.dateKey,
+      algoVersion: DAILY_PUZZLE_ALGO_VERSION,
+      templateId: daily.templateId,
+      level: daily.level,
+    };
   }
+
+  if (!SUPPORTED_FRIEND_ALGO_VERSIONS.includes(rawAlgoVersion)) {
+    return {
+      ok: false,
+      httpStatus: 400,
+      code: 'UNSUPPORTED_ALGO_VERSION',
+      message: `Unsupported friend challenge algorithm version: ${rawAlgoVersion}.`,
+      details: { supportedVersions: [...SUPPORTED_FRIEND_ALGO_VERSIONS] },
+    };
+  }
+
+  const parsed = parseFriendChallengeCode(rawChallengeId);
+  if (!parsed.ok) {
+    const code: ChallengeVerifyErrorCode =
+      parsed.reason === 'unsupported_version'
+        ? 'UNSUPPORTED_ALGO_VERSION'
+        : 'INVALID_FRIEND_CHALLENGE';
+    return {
+      ok: false,
+      httpStatus: 400,
+      code,
+      message: `Invalid friend challenge code (${parsed.reason}).`,
+    };
+  }
+
+  if (parsed.challenge.algoVersion !== rawAlgoVersion) {
+    return {
+      ok: false,
+      httpStatus: 400,
+      code: 'CHALLENGE_ID_MISMATCH',
+      message: 'algoVersion does not match the friend challenge identifier.',
+    };
+  }
+
+  return {
+    ok: true,
+    challengeType: 'friend',
+    challengeId: parsed.challenge.challengeId,
+    dateKey: null,
+    algoVersion: FRIEND_CHALLENGE_ALGO_VERSION,
+    templateId: parsed.challenge.templateId,
+    level: parsed.challenge.level,
+  };
+}
+
+/**
+ * Independently reconstruct the trusted puzzle definition and replay a submitted
+ * clockwise tile-rotation sequence against the authoritative Qanatchi simulation engine.
+ *
+ * Security guarantees:
+ * - Never reads or trusts client-supplied score, stars, move count, board grid, or min moves.
+ * - Rejects malformed inputs, unsupported algorithm versions, out-of-bounds actions,
+ *   rotations on locked/non-rotatable tiles, excessive action counts, leaks, and unreached destinations.
+ */
+export function replayAndVerifyChallengeSubmission(
+  rawPayload: unknown,
+  options?: { now?: Date },
+): ChallengeVerificationOutcome {
+  if (!rawPayload || typeof rawPayload !== 'object' || Array.isArray(rawPayload)) {
+    return {
+      ok: false,
+      httpStatus: 400,
+      code: 'INVALID_ACTIONS_FORMAT',
+      message: 'Submission payload must be a JSON object.',
+    };
+  }
+
+  const body = rawPayload as Record<string, unknown>;
+  const resolved = resolveTrustedChallengeDefinition(body, options);
+  if (!resolved.ok) {
+    return resolved;
+  }
+
+  const rawActions = body.actions;
+  if (!Array.isArray(rawActions)) {
+    return {
+      ok: false,
+      httpStatus: 400,
+      code: 'INVALID_ACTIONS_FORMAT',
+      message: 'actions must be an array of { row, col } rotation steps.',
+    };
+  }
+
+  if (rawActions.length === 0) {
+    return {
+      ok: false,
+      httpStatus: 422,
+      code: 'SOLUTION_INCOMPLETE',
+      message: 'Action sequence cannot be empty.',
+    };
+  }
+
+  if (rawActions.length > MAX_SUBMITTED_ACTIONS) {
+    return {
+      ok: false,
+      httpStatus: 400,
+      code: 'ACTION_LIMIT_EXCEEDED',
+      message: `Action sequence exceeds maximum allowed length of ${MAX_SUBMITTED_ACTIONS}.`,
+      details: { maxActions: MAX_SUBMITTED_ACTIONS, received: rawActions.length },
+    };
+  }
+
+  const { level, challengeType, challengeId: canonicalChallengeId, dateKey: resolvedDateKey, algoVersion, templateId } =
+    resolved;
 
   // Reconstruct initial board independently and replay every submitted action
   const board = buildInitialBoardFromDefinition(level);
@@ -348,8 +455,7 @@ export function replayAndVerifyChallengeSubmission(
     challengeType,
     challengeId: canonicalChallengeId,
     dateKey: resolvedDateKey,
-    algoVersion:
-      challengeType === 'daily' ? DAILY_PUZZLE_ALGO_VERSION : FRIEND_CHALLENGE_ALGO_VERSION,
+    algoVersion,
     scoringVersion: RANKED_SCORING_ALGO_VERSION,
     templateId,
     difficulty: level.difficulty,

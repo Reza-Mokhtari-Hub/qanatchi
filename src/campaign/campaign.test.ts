@@ -26,6 +26,7 @@ import {
   LEGACY_V1_PROGRESS_KEY,
   LEGACY_V2_PROGRESS_KEY,
   LEGACY_V3_PROGRESS_KEY,
+  LEGACY_V4_PROGRESS_KEY,
   loadProgress,
   PROGRESS_STORAGE_KEY,
   recordLevelCompletion,
@@ -47,13 +48,29 @@ function createMemoryStorage(): StorageLike {
   };
 }
 
-test('campaign structure matches exact 10-route, 40-destination, 80-level architecture', () => {
-  assert.equal(REGIONS.length, 10);
-  assert.equal(DESTINATIONS.length, 40);
-  assert.equal(LEVELS.length, 80);
-  assert.equal(TOTAL_CAMPAIGN_LEVELS, 80);
+function buildMockLevelsRecord(maxId: number, starPattern: 'all3' | 'mixed' = 'all3') {
+  const levels: Record<number, unknown> = {};
+  for (let id = 1; id <= maxId; id++) {
+    levels[id] = {
+      levelId: id,
+      completed: true,
+      bestStars: starPattern === 'mixed' && id % 3 === 0 ? 2 : 3,
+      bestScore: 2000 + id * 5,
+      bestMoves: LEVELS[id - 1].expectedMinMoves,
+      bestTimeSec: 32,
+      completedAt: '2026-11-19T12:00:00.000Z',
+    };
+  }
+  return levels;
+}
 
-  // Verify exact 10 route IDs in order
+test('campaign structure matches exact 12-route, 50-destination, 100-level architecture with variable route lengths', () => {
+  assert.equal(REGIONS.length, 12);
+  assert.equal(DESTINATIONS.length, 50);
+  assert.equal(LEVELS.length, 100);
+  assert.equal(TOTAL_CAMPAIGN_LEVELS, 100);
+
+  // Verify exact 12 route IDs in order
   assert.deepEqual(
     REGIONS.map((r) => r.id),
     [
@@ -67,38 +84,53 @@ test('campaign structure matches exact 10-route, 40-destination, 80-level archit
       'semnan',
       'northwest',
       'razavi_khorasan',
+      'shahsavan',
+      'turkmen_sahra',
     ],
   );
 
-  // Route 5 (Khorasan) and Route 10 (Razavi Khorasan) must be clearly distinct
+  // Route 5 (Khorasan) and Route 10 (Razavi Khorasan), as well as Route 11 & 12 must be distinct
   const route5 = getRegionById('khorasan');
   const route10 = getRegionById('razavi_khorasan');
+  const route11 = getRegionById('shahsavan');
+  const route12 = getRegionById('turkmen_sahra');
   assert.notEqual(route5.id, route10.id);
-  assert.notEqual(route5.nameFa, route10.nameFa);
   assert.equal(route5.nameFa, 'خراسان');
   assert.equal(route10.nameFa, 'خراسان رضوی');
+  assert.equal(route11.nameFa, 'راه کوچ شاهسون');
+  assert.equal(route12.nameFa, 'راه ترکمن‌صحرا');
 
-  // Verify no duplicate destination IDs or duplicate level IDs (gapless 1..80)
+  // Verify no duplicate destination IDs or duplicate level IDs (gapless 1..100)
   const destinationIds = new Set(DESTINATIONS.map((d) => d.id));
-  assert.equal(destinationIds.size, 40);
+  assert.equal(destinationIds.size, 50);
   const levelIds = new Set(LEVELS.map((l) => l.id));
-  assert.equal(levelIds.size, 80);
-  for (let i = 0; i < 80; i++) {
+  assert.equal(levelIds.size, 100);
+  for (let i = 0; i < 100; i++) {
     assert.equal(LEVELS[i].id, i + 1);
   }
 
-  // Verify each route has exactly 4 destinations and 8 levels
+  // Variable route lengths: Routes 1–10 have 4 destinations & 8 levels; Routes 11–12 have 5 destinations & 10 levels
   for (const region of REGIONS) {
     const regionDestinations = getDestinationsByRegion(region.id);
-    assert.equal(regionDestinations.length, 4, `Region ${region.id} must have 4 destinations`);
+    const expectedDestCount = region.order <= 10 ? 4 : 5;
+    const expectedLevelCount = expectedDestCount * 2;
+    assert.equal(
+      regionDestinations.length,
+      expectedDestCount,
+      `Region ${region.id} must have ${expectedDestCount} destinations`,
+    );
     assert.deepEqual(
       regionDestinations.map((d) => d.id),
       region.destinationIds,
     );
-    assert.equal(region.levelIds.length, 8);
+    assert.equal(
+      region.levelIds.length,
+      expectedLevelCount,
+      `Region ${region.id} must have ${expectedLevelCount} levels`,
+    );
   }
 
-  // Verify exact destination roster per route and 2 levels per destination across all 10 routes
+  // Verify exact destination roster per route and 2 levels per destination across all 12 routes
   const expectedRoster: Record<
     RegionId,
     Array<{ id: DestinationId; nameFa: string; levels: [number, number] }>
@@ -163,6 +195,20 @@ test('campaign structure matches exact 10-route, 40-destination, 80-level archit
       { id: 'kashmar', nameFa: 'کاشمر', levels: [77, 78] },
       { id: 'torbat_heydarieh', nameFa: 'تربت حیدریه', levels: [79, 80] },
     ],
+    shahsavan: [
+      { id: 'parsabad', nameFa: 'پارس‌آباد', levels: [81, 82] },
+      { id: 'bileh_savar', nameFa: 'بیله‌سوار', levels: [83, 84] },
+      { id: 'germi', nameFa: 'گرمی', levels: [85, 86] },
+      { id: 'meshgin_shahr', nameFa: 'مشگین‌شهر', levels: [87, 88] },
+      { id: 'ardabil_sabalan', nameFa: 'اردبیل و دامنه سبلان', levels: [89, 90] },
+    ],
+    turkmen_sahra: [
+      { id: 'gonbad_kavus', nameFa: 'گنبد کاووس', levels: [91, 92] },
+      { id: 'aq_qala', nameFa: 'آق‌قلا', levels: [93, 94] },
+      { id: 'bandar_torkaman', nameFa: 'بندر ترکمن', levels: [95, 96] },
+      { id: 'gomishan', nameFa: 'گمیشان / گمیش‌تپه', levels: [97, 98] },
+      { id: 'maraveh_tappeh', nameFa: 'مراوه‌تپه', levels: [99, 100] },
+    ],
   };
 
   for (const [regionId, expectedDests] of Object.entries(expectedRoster) as Array<
@@ -192,15 +238,17 @@ test('campaign structure matches exact 10-route, 40-destination, 80-level archit
     }
   }
 
-  // Explicit spot checks for key preserved & new destinations
+  // Explicit spot checks for key preserved & Phase 9 destinations
   assert.equal(getDestinationById('abuzeydabad').nameFa, 'ابوزیدآباد');
   assert.equal(getDestinationById('ijrud').nameFa, 'ایجرود');
-  assert.equal(getDestinationById('isfahan').regionId, 'isfahan');
   assert.equal(getDestinationById('torbat_heydarieh').regionId, 'razavi_khorasan');
-  assert.deepEqual(getDestinationById('torbat_heydarieh').levelIds, [79, 80]);
+  assert.equal(getDestinationById('parsabad').regionId, 'shahsavan');
+  assert.equal(getDestinationById('ardabil_sabalan').nameFa, 'اردبیل و دامنه سبلان');
+  assert.equal(getDestinationById('gonbad_kavus').regionId, 'turkmen_sahra');
+  assert.deepEqual(getDestinationById('maraveh_tappeh').levelIds, [99, 100]);
 });
 
-test('original Level IDs 1–40 preserve their exact regions and difficulty progression, and 41–80 follow regional assignments', () => {
+test('original Level IDs 1–80 preserve their exact regions and difficulty progression, and 81–100 follow Routes 11–12', () => {
   const expectedDifficulty1To24 = (id: number) => {
     if (id <= 4) return 'easy';
     if (id <= 8) return 'normal';
@@ -220,10 +268,12 @@ test('original Level IDs 1–40 preserve their exact regions and difficulty prog
     if (id <= 56) return 'fars';
     if (id <= 64) return 'semnan';
     if (id <= 72) return 'northwest';
-    return 'razavi_khorasan';
+    if (id <= 80) return 'razavi_khorasan';
+    if (id <= 90) return 'shahsavan';
+    return 'turkmen_sahra';
   };
 
-  for (let i = 0; i < 80; i++) {
+  for (let i = 0; i < 100; i++) {
     const lvl = LEVELS[i];
     const id = i + 1;
     assert.equal(lvl.id, id);
@@ -240,8 +290,8 @@ test('initial progression unlocks only Level 1, Route 1 (Yazd), and Destination 
   const progress = createDefaultProgress();
   assert.equal(isLevelUnlocked(progress, 1), true);
   assert.equal(isLevelUnlocked(progress, 2), false);
-  assert.equal(isLevelUnlocked(progress, 41), false);
-  assert.equal(isLevelUnlocked(progress, 80), false);
+  assert.equal(isLevelUnlocked(progress, 81), false);
+  assert.equal(isLevelUnlocked(progress, 100), false);
 
   assert.equal(isRegionUnlocked(progress, 'yazd'), true);
   for (const r of REGIONS.slice(1)) {
@@ -250,19 +300,19 @@ test('initial progression unlocks only Level 1, Route 1 (Yazd), and Destination 
 
   assert.equal(isDestinationUnlocked(progress, 'yazd'), true);
   assert.equal(isDestinationUnlocked(progress, 'meybod'), false);
-  assert.equal(isDestinationUnlocked(progress, 'isfahan'), false);
-  assert.equal(isDestinationUnlocked(progress, 'torbat_heydarieh'), false);
+  assert.equal(isDestinationUnlocked(progress, 'parsabad'), false);
+  assert.equal(isDestinationUnlocked(progress, 'maraveh_tappeh'), false);
 
   const summary = getCampaignSummary(progress);
   assert.equal(summary.completedLevels, 0);
-  assert.equal(summary.totalLevels, 80);
-  assert.equal(summary.maxStars, 240);
+  assert.equal(summary.totalLevels, 100);
+  assert.equal(summary.maxStars, 300);
   assert.equal(summary.completionPercent, 0);
   assert.equal(summary.unlockedRegionsCount, 1);
-  assert.equal(summary.totalRegionsCount, 10);
+  assert.equal(summary.totalRegionsCount, 12);
 });
 
-test('sequential progression unlocks all 10 routes and completes all 80 levels with milestones', () => {
+test('sequential progression unlocks all 12 routes and completes all 100 levels with milestones', () => {
   const mem = createMemoryStorage();
   let progress = createDefaultProgress();
 
@@ -293,7 +343,7 @@ test('sequential progression unlocks all 10 routes and completes all 80 levels w
   assert.equal(getDestinationProgress(progress, 'yazd').isCompleted, true);
   assert.equal(getDestinationProgress(progress, 'yazd').earnedStars, 6);
 
-  // Route unlock gates at 8, 16, 24, 32, 40, 48, 56, 64, 72
+  // Route unlock gates at 8, 16, 24, 32, 40, 48, 56, 64, 72, 80, 90
   const routeGates: Array<{
     gateLevel: number;
     unlocksRegion: RegionId;
@@ -313,6 +363,18 @@ test('sequential progression unlocks all 10 routes and completes all 80 levels w
       unlocksRegion: 'razavi_khorasan',
       unlocksFirstDest: 'nishapur',
       milestoneId: 'unlock_razavi_khorasan',
+    },
+    {
+      gateLevel: 80,
+      unlocksRegion: 'shahsavan',
+      unlocksFirstDest: 'parsabad',
+      milestoneId: 'unlock_shahsavan',
+    },
+    {
+      gateLevel: 90,
+      unlocksRegion: 'turkmen_sahra',
+      unlocksFirstDest: 'gonbad_kavus',
+      milestoneId: 'unlock_turkmen_sahra',
     },
   ];
 
@@ -334,32 +396,43 @@ test('sequential progression unlocks all 10 routes and completes all 80 levels w
     assert.equal(detectCompletionMilestone(res.before, res.after, gate.gateLevel)?.id, gate.milestoneId);
   }
 
-  // Complete Levels 73..79
-  for (let id = 73; id <= 79; id++) completeOne(id);
-  assert.equal(getCampaignSummary(progress).completedLevels, 79);
-  assert.equal(getCampaignSummary(progress).isCampaignCompleted, false);
-  assert.equal(isLevelUnlocked(progress, 80), true);
+  // Verify variable route progress percentages cleanly for Route 11 (10 levels)
+  const r11Progress = getRegionProgress(progress, 'shahsavan');
+  assert.equal(r11Progress.totalCount, 10);
+  assert.equal(r11Progress.completedCount, 10);
+  assert.equal(r11Progress.maxStars, 30);
+  assert.equal(r11Progress.completionPercent, 100);
 
-  // Level 80 -> 80-level Campaign completion!
-  const r80 = completeOne(80);
+  // Complete Levels 91..99 (Routes 12 has 10 levels)
+  for (let id = 91; id <= 99; id++) completeOne(id);
+  const partial12 = getRegionProgress(progress, 'turkmen_sahra');
+  assert.equal(partial12.totalCount, 10);
+  assert.equal(partial12.completedCount, 9);
+  assert.equal(partial12.completionPercent, 90);
+  assert.equal(getCampaignSummary(progress).completedLevels, 99);
+  assert.equal(getCampaignSummary(progress).isCampaignCompleted, false);
+  assert.equal(isLevelUnlocked(progress, 100), true);
+
+  // Level 100 -> 100-level Campaign completion!
+  const r100 = completeOne(100);
   const finalSummary = getCampaignSummary(progress);
-  assert.equal(finalSummary.completedLevels, 80);
-  assert.equal(finalSummary.totalLevels, 80);
+  assert.equal(finalSummary.completedLevels, 100);
+  assert.equal(finalSummary.totalLevels, 100);
   assert.equal(finalSummary.completionPercent, 100);
-  assert.equal(finalSummary.earnedStars, 240);
-  assert.equal(finalSummary.maxStars, 240);
-  assert.equal(finalSummary.unlockedRegionsCount, 10);
-  assert.equal(finalSummary.totalRegionsCount, 10);
+  assert.equal(finalSummary.earnedStars, 300);
+  assert.equal(finalSummary.maxStars, 300);
+  assert.equal(finalSummary.unlockedRegionsCount, 12);
+  assert.equal(finalSummary.totalRegionsCount, 12);
   assert.equal(finalSummary.isCampaignCompleted, true);
-  assert.equal(getRegionProgress(progress, 'razavi_khorasan').completionPercent, 100);
-  assert.equal(detectCompletionMilestone(r80.before, r80.after, 80)?.id, 'campaign_complete');
+  assert.equal(getRegionProgress(progress, 'turkmen_sahra').completionPercent, 100);
+  assert.equal(detectCompletionMilestone(r100.before, r100.after, 100)?.id, 'campaign_complete');
 });
 
 test('replaying an older completed level never erases better stars, score, moves, time, or later unlocked routes', () => {
   const mem = createMemoryStorage();
   let progress = createDefaultProgress();
 
-  for (let id = 1; id <= 41; id++) {
+  for (let id = 1; id <= 85; id++) {
     const lvl = LEVELS[id - 1];
     const greatScore = calculateLevelScore({
       rotations: lvl.expectedMinMoves,
@@ -372,8 +445,8 @@ test('replaying an older completed level never erases better stars, score, moves
   }
   const origL1 = progress.levels[1];
   assert.equal(origL1.bestStars, 3);
-  assert.equal(progress.highestUnlockedLevelId, 42);
-  assert.equal(isRegionUnlocked(progress, 'isfahan'), true);
+  assert.equal(progress.highestUnlockedLevelId, 86);
+  assert.equal(isRegionUnlocked(progress, 'shahsavan'), true);
 
   const worseReplay = calculateLevelScore({
     rotations: 35,
@@ -389,175 +462,125 @@ test('replaying an older completed level never erases better stars, score, moves
   assert.equal(afterReplay.levels[1].bestScore, origL1.bestScore);
   assert.equal(afterReplay.levels[1].bestMoves, origL1.bestMoves);
   assert.equal(afterReplay.levels[1].bestTimeSec, origL1.bestTimeSec);
-  assert.equal(afterReplay.highestUnlockedLevelId, 42);
-  assert.equal(isLevelUnlocked(afterReplay, 42), true);
-  assert.equal(isRegionUnlocked(afterReplay, 'isfahan'), true);
+  assert.equal(afterReplay.highestUnlockedLevelId, 86);
+  assert.equal(isLevelUnlocked(afterReplay, 86), true);
+  assert.equal(isRegionUnlocked(afterReplay, 'shahsavan'), true);
 });
 
-test('lossless migration from Phase 1 v1 storage preserves all stars, scores, and unlocks into v4', () => {
-  const mem = createMemoryStorage();
-  const phase1Payload = {
-    version: 1,
-    lastPlayedLevelId: 4,
-    levels: {
-      1: {
-        levelId: 1,
-        completed: true,
-        bestStars: 3,
-        bestScore: 1980,
-        bestMoves: 6,
-        bestTimeSec: 21,
-        completedAt: '2026-11-19T12:00:00.000Z',
-      },
-      2: {
-        levelId: 2,
-        completed: true,
-        bestStars: 2,
-        bestScore: 1620,
-        bestMoves: 14,
-        bestTimeSec: 48,
-        completedAt: '2026-11-19T12:05:00.000Z',
-      },
-      3: {
-        levelId: 3,
-        completed: true,
-        bestStars: 3,
-        bestScore: 1950,
-        bestMoves: 11,
-        bestTimeSec: 39,
-        completedAt: '2026-11-19T12:10:00.000Z',
-      },
-    },
-  };
-  mem.setItem(LEGACY_V1_PROGRESS_KEY, JSON.stringify(phase1Payload));
+test('lossless migration from Phase 1 v1, v2 24/24, and v3 40/40 storage preserves progress cleanly into v5', () => {
+  // v1 partial
+  {
+    const mem = createMemoryStorage();
+    mem.setItem(
+      LEGACY_V1_PROGRESS_KEY,
+      JSON.stringify({
+        version: 1,
+        lastPlayedLevelId: 4,
+        levels: buildMockLevelsRecord(3, 'mixed'),
+      }),
+    );
+    const migrated = loadProgress(mem);
+    assert.equal(migrated.version, STORAGE_SCHEMA_VERSION);
+    assert.equal(migrated.highestUnlockedLevelId, 4);
+    assert.deepEqual(migrated.unlockedRegions, ['yazd']);
+    assert.ok(mem.getItem(PROGRESS_STORAGE_KEY) !== null);
+  }
 
-  const migrated = loadProgress(mem);
-  assert.equal(migrated.version, STORAGE_SCHEMA_VERSION);
-  assert.equal(migrated.levels[1].bestStars, 3);
-  assert.equal(migrated.levels[1].bestScore, 1980);
-  assert.equal(migrated.levels[2].bestStars, 2);
-  assert.equal(migrated.levels[3].bestScore, 1950);
-  assert.equal(migrated.highestUnlockedLevelId, 4);
-  assert.equal(migrated.lastPlayedLevelId, 4);
-  assert.deepEqual(migrated.unlockedRegions, ['yazd']);
-  assert.ok(mem.getItem(PROGRESS_STORAGE_KEY) !== null);
+  // v2 24/24
+  {
+    const mem = createMemoryStorage();
+    mem.setItem(
+      LEGACY_V2_PROGRESS_KEY,
+      JSON.stringify({
+        version: 2,
+        lastPlayedLevelId: 24,
+        highestUnlockedLevelId: 24,
+        lastSelectedRegionId: 'kashan',
+        unlockedRegions: ['yazd', 'kerman', 'kashan'],
+        seenStoryIds: ['enter_yazd', 'first_qanat_restored', 'unlock_kerman', 'unlock_kashan', 'campaign_complete'],
+        levels: buildMockLevelsRecord(24),
+      }),
+    );
+    const migrated = loadProgress(mem);
+    assert.equal(migrated.highestUnlockedLevelId, 25);
+    assert.equal(migrated.lastSelectedRegionId, 'zanjan');
+    assert.equal(migrated.seenStoryIds.includes('campaign_complete'), false);
+    assert.equal(getCampaignSummary(migrated).completedLevels, 24);
+  }
+
+  // v3 40/40
+  {
+    const mem = createMemoryStorage();
+    mem.setItem(
+      LEGACY_V3_PROGRESS_KEY,
+      JSON.stringify({
+        version: 3,
+        lastPlayedLevelId: 40,
+        highestUnlockedLevelId: 40,
+        lastSelectedRegionId: 'khorasan',
+        unlockedRegions: ['yazd', 'kerman', 'kashan', 'zanjan', 'khorasan'],
+        seenStoryIds: [
+          'enter_yazd',
+          'first_qanat_restored',
+          'unlock_kerman',
+          'unlock_kashan',
+          'unlock_zanjan',
+          'unlock_khorasan',
+          'campaign_complete',
+        ],
+        levels: buildMockLevelsRecord(40),
+      }),
+    );
+    const migrated = loadProgress(mem);
+    assert.equal(migrated.highestUnlockedLevelId, 41);
+    assert.equal(migrated.lastSelectedRegionId, 'isfahan');
+    assert.equal(isRegionUnlocked(migrated, 'isfahan'), true);
+    assert.equal(isRegionUnlocked(migrated, 'shahsavan'), false);
+    assert.equal(migrated.seenStoryIds.includes('campaign_complete'), false);
+    assert.equal(getCampaignSummary(migrated).completedLevels, 40);
+  }
 });
 
-test('migration from completed 24/24 Phase 6 v2 storage unlocks Level 25 & Zanjan without falsely completing 25–80', () => {
-  const mem = createMemoryStorage();
-  const levels: Record<number, unknown> = {};
-  for (let id = 1; id <= 24; id++) {
-    levels[id] = {
-      levelId: id,
-      completed: true,
-      bestStars: 3,
-      bestScore: 2000 + id,
-      bestMoves: LEVELS[id - 1].expectedMinMoves,
-      bestTimeSec: 30,
-      completedAt: '2026-11-19T12:00:00.000Z',
-    };
-  }
-  const v2Completed24 = {
-    version: 2,
-    lastPlayedLevelId: 24,
-    highestUnlockedLevelId: 24,
-    lastSelectedRegionId: 'kashan',
-    unlockedRegions: ['yazd', 'kerman', 'kashan'],
-    seenStoryIds: [
-      'enter_yazd',
-      'first_qanat_restored',
-      'unlock_kerman',
-      'unlock_kashan',
-      'campaign_complete',
-    ],
-    levels,
-  };
-  mem.setItem(LEGACY_V2_PROGRESS_KEY, JSON.stringify(v2Completed24));
+test('migration from partial Phase 8 v4 saves (20/80, 40/80, 60/80) preserves exact unlocks into v5', () => {
+  for (const completedCount of [20, 40, 60] as const) {
+    const mem = createMemoryStorage();
+    const expectedRegion: RegionId =
+      completedCount === 20 ? 'kashan' : completedCount === 40 ? 'isfahan' : 'semnan';
+    const expectedUnlockedCount = completedCount === 20 ? 3 : completedCount === 40 ? 6 : 8;
 
-  const migrated = loadProgress(mem);
-  assert.equal(migrated.version, STORAGE_SCHEMA_VERSION);
+    mem.setItem(
+      LEGACY_V4_PROGRESS_KEY,
+      JSON.stringify({
+        version: 4,
+        lastPlayedLevelId: completedCount + 1,
+        highestUnlockedLevelId: completedCount + 1,
+        lastSelectedRegionId: expectedRegion,
+        unlockedRegions: REGIONS.slice(0, expectedUnlockedCount).map((r) => r.id),
+        seenStoryIds: ['enter_yazd'],
+        levels: buildMockLevelsRecord(completedCount, 'mixed'),
+      }),
+    );
 
-  for (let id = 1; id <= 24; id++) {
-    assert.equal(migrated.levels[id]?.completed, true);
-    assert.equal(migrated.levels[id]?.bestStars, 3);
-    assert.equal(migrated.levels[id]?.bestScore, 2000 + id);
+    const migrated = loadProgress(mem);
+    assert.equal(migrated.version, STORAGE_SCHEMA_VERSION);
+    assert.equal(getCampaignSummary(migrated).completedLevels, completedCount);
+    assert.equal(getCampaignSummary(migrated).totalLevels, 100);
+    assert.equal(migrated.highestUnlockedLevelId, completedCount + 1);
+    assert.equal(isRegionUnlocked(migrated, expectedRegion), true);
+    assert.equal(isRegionUnlocked(migrated, 'shahsavan'), false);
+    assert.equal(isRegionUnlocked(migrated, 'turkmen_sahra'), false);
+    assert.equal(migrated.levels[completedCount + 1], undefined);
   }
-  for (let id = 25; id <= 80; id++) {
-    assert.equal(migrated.levels[id], undefined);
-  }
-
-  assert.equal(migrated.highestUnlockedLevelId, 25);
-  assert.equal(migrated.lastPlayedLevelId, 25);
-  assert.equal(migrated.lastSelectedRegionId, 'zanjan');
-  assert.equal(isRegionUnlocked(migrated, 'zanjan'), true);
-  assert.equal(isRegionUnlocked(migrated, 'khorasan'), false);
-  assert.equal(isRegionUnlocked(migrated, 'isfahan'), false);
-  assert.equal(migrated.seenStoryIds.includes('campaign_complete'), false);
-  assert.equal(getCampaignSummary(migrated).completedLevels, 24);
-  assert.equal(getCampaignSummary(migrated).totalLevels, 80);
 });
 
-test('lossless migration from Phase 7 v3 partial save preserves exact progress into v4', () => {
+test('migration from completed 80/80 Phase 8 v4 storage unlocks Level 81 & Shahsavan without falsely completing 81–100', () => {
   const mem = createMemoryStorage();
-  const levels: Record<number, unknown> = {};
-  for (let id = 1; id <= 30; id++) {
-    levels[id] = {
-      levelId: id,
-      completed: true,
-      bestStars: id % 3 === 0 ? 2 : 3,
-      bestScore: 1700 + id * 10,
-      bestMoves: LEVELS[id - 1].expectedMinMoves + 1,
-      bestTimeSec: 40 + id,
-      completedAt: '2026-11-19T12:00:00.000Z',
-    };
-  }
-  mem.setItem(
-    LEGACY_V3_PROGRESS_KEY,
-    JSON.stringify({
-      version: 3,
-      lastPlayedLevelId: 31,
-      highestUnlockedLevelId: 31,
-      lastSelectedRegionId: 'zanjan',
-      unlockedRegions: ['yazd', 'kerman', 'kashan', 'zanjan'],
-      seenStoryIds: ['enter_yazd', 'first_qanat_restored', 'unlock_kerman', 'unlock_kashan', 'unlock_zanjan'],
-      levels,
-    }),
-  );
-
-  const migrated = loadProgress(mem);
-  assert.equal(migrated.version, STORAGE_SCHEMA_VERSION);
-  assert.equal(Object.keys(migrated.levels).length, 30);
-  assert.equal(migrated.levels[30].bestScore, 2000);
-  assert.equal(migrated.highestUnlockedLevelId, 31);
-  assert.equal(migrated.lastPlayedLevelId, 31);
-  assert.equal(migrated.lastSelectedRegionId, 'zanjan');
-  assert.equal(isRegionUnlocked(migrated, 'zanjan'), true);
-  assert.equal(isRegionUnlocked(migrated, 'khorasan'), false);
-  assert.equal(isRegionUnlocked(migrated, 'isfahan'), false);
-  assert.equal(getRecommendedPlayableLevelId(migrated), 31);
-  assert.ok(mem.getItem(PROGRESS_STORAGE_KEY) !== null);
-});
-
-test('migration from completed 40/40 Phase 7 v3 storage unlocks Level 41 & Isfahan Plateau without falsely completing 41–80', () => {
-  const mem = createMemoryStorage();
-  const levels: Record<number, unknown> = {};
-  for (let id = 1; id <= 40; id++) {
-    levels[id] = {
-      levelId: id,
-      completed: true,
-      bestStars: 3,
-      bestScore: 2100 + id,
-      bestMoves: LEVELS[id - 1].expectedMinMoves,
-      bestTimeSec: 35,
-      completedAt: '2026-11-19T12:00:00.000Z',
-    };
-  }
-  const v3Completed40 = {
-    version: 3,
-    lastPlayedLevelId: 40,
-    highestUnlockedLevelId: 40,
-    lastSelectedRegionId: 'khorasan',
-    unlockedRegions: ['yazd', 'kerman', 'kashan', 'zanjan', 'khorasan'],
+  const v4Completed80 = {
+    version: 4,
+    lastPlayedLevelId: 80,
+    highestUnlockedLevelId: 80,
+    lastSelectedRegionId: 'razavi_khorasan',
+    unlockedRegions: REGIONS.slice(0, 10).map((r) => r.id),
     seenStoryIds: [
       'enter_yazd',
       'first_qanat_restored',
@@ -565,49 +588,119 @@ test('migration from completed 40/40 Phase 7 v3 storage unlocks Level 41 & Isfah
       'unlock_kashan',
       'unlock_zanjan',
       'unlock_khorasan',
+      'unlock_isfahan',
+      'unlock_fars',
+      'unlock_semnan',
+      'unlock_northwest',
+      'unlock_razavi_khorasan',
       'campaign_complete',
     ],
-    levels,
+    levels: buildMockLevelsRecord(80),
   };
-  mem.setItem(LEGACY_V3_PROGRESS_KEY, JSON.stringify(v3Completed40));
+  mem.setItem(LEGACY_V4_PROGRESS_KEY, JSON.stringify(v4Completed80));
 
   const migrated = loadProgress(mem);
   assert.equal(migrated.version, STORAGE_SCHEMA_VERSION);
 
-  // All 40 completed records preserved verbatim
-  for (let id = 1; id <= 40; id++) {
+  // All 80 completed records preserved verbatim
+  for (let id = 1; id <= 80; id++) {
     assert.equal(migrated.levels[id]?.completed, true);
     assert.equal(migrated.levels[id]?.bestStars, 3);
-    assert.equal(migrated.levels[id]?.bestScore, 2100 + id);
+    assert.equal(migrated.levels[id]?.bestScore, 2000 + id * 5);
   }
-  // Levels 41–80 MUST NOT be falsely marked completed
-  for (let id = 41; id <= 80; id++) {
+  // Levels 81–100 MUST NOT be falsely marked completed
+  for (let id = 81; id <= 100; id++) {
     assert.equal(migrated.levels[id], undefined, `Level ${id} must not be marked completed on migration`);
   }
 
-  // Level 41 & Isfahan Plateau MUST automatically unlock; Routes 7–10 stay locked
-  assert.equal(migrated.highestUnlockedLevelId, 41);
-  assert.equal(migrated.lastPlayedLevelId, 41);
-  assert.equal(migrated.lastSelectedRegionId, 'isfahan');
-  assert.equal(isLevelUnlocked(migrated, 41), true);
-  assert.equal(isLevelUnlocked(migrated, 42), false);
-  assert.equal(isRegionUnlocked(migrated, 'isfahan'), true);
-  assert.equal(isRegionUnlocked(migrated, 'fars'), false);
-  assert.equal(isRegionUnlocked(migrated, 'semnan'), false);
-  assert.equal(isRegionUnlocked(migrated, 'northwest'), false);
-  assert.equal(isRegionUnlocked(migrated, 'razavi_khorasan'), false);
-  assert.equal(getRecommendedPlayableLevelId(migrated), 41);
+  // Level 81 & Shahsavan MUST automatically unlock; Turkmen Sahra stays locked
+  assert.equal(migrated.highestUnlockedLevelId, 81);
+  assert.equal(migrated.lastPlayedLevelId, 81);
+  assert.equal(migrated.lastSelectedRegionId, 'shahsavan');
+  assert.equal(isLevelUnlocked(migrated, 81), true);
+  assert.equal(isLevelUnlocked(migrated, 82), false);
+  assert.equal(isRegionUnlocked(migrated, 'shahsavan'), true);
+  assert.equal(isRegionUnlocked(migrated, 'turkmen_sahra'), false);
+  assert.equal(getRecommendedPlayableLevelId(migrated), 81);
 
-  // Pre-v4 'campaign_complete' cleared so the 80-level finale will trigger on Level 80
+  // Pre-v5 'campaign_complete' cleared so the 100-level finale will trigger on Level 100
   assert.equal(migrated.seenStoryIds.includes('campaign_complete'), false);
 
   const summary = getCampaignSummary(migrated);
-  assert.equal(summary.completedLevels, 40);
-  assert.equal(summary.totalLevels, 80);
-  assert.equal(summary.completionPercent, 50);
-  assert.equal(summary.unlockedRegionsCount, 6);
-  assert.equal(summary.totalRegionsCount, 10);
+  assert.equal(summary.completedLevels, 80);
+  assert.equal(summary.totalLevels, 100);
+  assert.equal(summary.completionPercent, 80);
+  assert.equal(summary.unlockedRegionsCount, 11);
+  assert.equal(summary.totalRegionsCount, 12);
   assert.equal(summary.isCampaignCompleted, false);
+});
+
+test('partial Shahsavan progress (85/100), Level 90 Turkmen unlock, and Level 100 completion persist cleanly', () => {
+  const mem = createMemoryStorage();
+  let progress = createDefaultProgress();
+
+  // Seed partial Shahsavan (1..85 completed)
+  mem.setItem(
+    PROGRESS_STORAGE_KEY,
+    JSON.stringify({
+      version: STORAGE_SCHEMA_VERSION,
+      lastPlayedLevelId: 86,
+      highestUnlockedLevelId: 86,
+      lastSelectedRegionId: 'shahsavan',
+      unlockedRegions: REGIONS.slice(0, 11).map((r) => r.id),
+      seenStoryIds: ['enter_yazd', 'unlock_shahsavan'],
+      levels: buildMockLevelsRecord(85),
+    }),
+  );
+
+  progress = loadProgress(mem);
+  assert.equal(getCampaignSummary(progress).completedLevels, 85);
+  assert.equal(isLevelUnlocked(progress, 86), true);
+  assert.equal(isRegionUnlocked(progress, 'turkmen_sahra'), false);
+
+  // Complete 86..90 -> Turkmen Sahra unlocks
+  for (let id = 86; id <= 90; id++) {
+    const lvl = LEVELS[id - 1];
+    progress = recordLevelCompletion(
+      progress,
+      id,
+      calculateLevelScore({
+        rotations: lvl.expectedMinMoves,
+        expectedMinMoves: lvl.expectedMinMoves,
+        elapsedSeconds: 30,
+        parTimeSec: lvl.parTimeSec,
+        hintsUsed: 0,
+      }),
+      id + 1,
+      mem,
+    );
+  }
+  assert.equal(isRegionUnlocked(progress, 'turkmen_sahra'), true);
+  assert.equal(isLevelUnlocked(progress, 91), true);
+  assert.equal(isLevelUnlocked(progress, 92), false);
+
+  // Complete 91..100 -> True 100/100 completion
+  for (let id = 91; id <= 100; id++) {
+    const lvl = LEVELS[id - 1];
+    progress = recordLevelCompletion(
+      progress,
+      id,
+      calculateLevelScore({
+        rotations: lvl.expectedMinMoves,
+        expectedMinMoves: lvl.expectedMinMoves,
+        elapsedSeconds: 35,
+        parTimeSec: lvl.parTimeSec,
+        hintsUsed: 0,
+      }),
+      id < 100 ? id + 1 : 100,
+      mem,
+    );
+  }
+  const reloaded = loadProgress(mem);
+  const summary = getCampaignSummary(reloaded);
+  assert.equal(summary.completedLevels, 100);
+  assert.equal(summary.earnedStars, 300);
+  assert.equal(summary.isCampaignCompleted, true);
 });
 
 test('corrupted and incomplete storage payloads are handled safely without crashing', () => {
@@ -619,7 +712,7 @@ test('corrupted and incomplete storage payloads are handled safely without crash
   mem.setItem(
     PROGRESS_STORAGE_KEY,
     JSON.stringify({
-      version: 4,
+      version: 5,
       lastPlayedLevelId: 999,
       highestUnlockedLevelId: -5,
       unlockedRegions: ['atlantis', 123],
@@ -639,6 +732,7 @@ test('corrupted and incomplete storage payloads are handled safely without crash
 
   clearProgress(mem);
   assert.equal(mem.getItem(PROGRESS_STORAGE_KEY), null);
+  assert.equal(mem.getItem(LEGACY_V4_PROGRESS_KEY), null);
   assert.equal(mem.getItem(LEGACY_V3_PROGRESS_KEY), null);
   assert.equal(mem.getItem(LEGACY_V2_PROGRESS_KEY), null);
   assert.equal(mem.getItem(LEGACY_V1_PROGRESS_KEY), null);
